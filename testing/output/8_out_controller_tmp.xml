@@ -1,0 +1,68 @@
+<?xml version="1.0" ?>
+<precice-configuration>
+   <log/>
+   <solver-interface dimensions="3">
+      <data:scalar name="Solid-Fluid-Mesh-HeatTransfer"/>
+      <data:scalar name="Solid-Fluid-Mesh-Temperature"/>
+      <data:scalar name="Fluid-Solid-Mesh-HeatTransfer"/>
+      <data:scalar name="Fluid-Solid-Mesh-Temperature"/>
+      <mesh name="Fluid-Solid-Mesh">
+         <user-data name="Solid-Fluid-Mesh-HeatTransfer"/>
+         <user-data name="Solid-Fluid-Mesh-Temperature"/>
+         <user-data name="Fluid-Solid-Mesh-HeatTransfer"/>
+         <user-data name="Fluid-Solid-Mesh-Temperature"/>
+      </mesh>
+      <mesh name="Solid-Fluid-Mesh">
+         <user-data name="Fluid-Solid-Mesh-HeatTransfer"/>
+         <user-data name="Fluid-Solid-Mesh-Temperature"/>
+         <user-data name="Solid-Fluid-Mesh-HeatTransfer"/>
+         <user-data name="Solid-Fluid-Mesh-Temperature"/>
+      </mesh>
+      <participant name="Fluid">
+         <use-mesh name="Fluid-Solid-Mesh" provide="yes"/>
+         <read-data name="Solid-Fluid-Mesh-HeatTransfer" mesh_name="Fluid-Solid-Mesh"/>
+         <use-mesh name="Solid-Fluid-Mesh" from="Solid"/>
+         <read-data name="Solid-Fluid-Mesh-Temperature" mesh_name="Fluid-Solid-Mesh"/>
+         <write-data name="Fluid-Solid-Mesh-HeatTransfer" mesh_name="Fluid-Solid-Mesh"/>
+         <write-data name="Fluid-Solid-Mesh-Temperature" mesh_name="Fluid-Solid-Mesh"/>
+         <mapping:nearest-neighbor direction="read" from_="Solid-Fluid-Mesh" to="Fluid-Solid-Mesh" constraint="consistent" timing="initial"/>
+      </participant>
+      <m2n:sockets to="Solid" from="Fluid" exchange-directory="../"/>
+      <participant name="Solid">
+         <use-mesh name="Solid-Fluid-Mesh" provide="yes"/>
+         <read-data name="Fluid-Solid-Mesh-HeatTransfer" mesh_name="Solid-Fluid-Mesh"/>
+         <use-mesh name="Fluid-Solid-Mesh" from="Fluid"/>
+         <read-data name="Fluid-Solid-Mesh-Temperature" mesh_name="Solid-Fluid-Mesh"/>
+         <write-data name="Solid-Fluid-Mesh-HeatTransfer" mesh_name="Solid-Fluid-Mesh"/>
+         <write-data name="Solid-Fluid-Mesh-Temperature" mesh_name="Solid-Fluid-Mesh"/>
+         <mapping:nearest-neighbor direction="read" from_="Fluid-Solid-Mesh" to="Solid-Fluid-Mesh" constraint="consistent" timing="initial"/>
+      </participant>
+      <m2n:sockets to="Fluid" from="Solid" exchange-directory="../"/>
+      <coupling-scheme:parallel-implicit>
+         <participant first="Fluid" second="Solid"/>
+         <max-timesteps value="20"/>
+         <timestep-length value="1e-2" valid-digits="8"/>
+         <max-iterations value="100"/>
+         <extrapolation-order value="2"/>
+         <exchange data="Solid-Fluid-Mesh-HeatTransfer" mesh="Fluid-Solid-Mesh" from="Solid" to="Fluid"/>
+         <relative-convergence-measure limit="0.0001" mesh="Fluid-Solid-Mesh" data="Solid-Fluid-Mesh-HeatTransfer"/>
+         <exchange data="Solid-Fluid-Mesh-Temperature" mesh="Fluid-Solid-Mesh" from="Solid" to="Fluid"/>
+         <relative-convergence-measure limit="0.0001" mesh="Fluid-Solid-Mesh" data="Solid-Fluid-Mesh-Temperature"/>
+         <exchange data="Fluid-Solid-Mesh-HeatTransfer" mesh="Fluid-Solid-Mesh" from="Fluid" to="Solid"/>
+         <relative-convergence-measure limit="0.0001" mesh="Fluid-Solid-Mesh" data="Fluid-Solid-Mesh-HeatTransfer"/>
+         <exchange data="Fluid-Solid-Mesh-Temperature" mesh="Fluid-Solid-Mesh" from="Fluid" to="Solid"/>
+         <relative-convergence-measure limit="0.0001" mesh="Fluid-Solid-Mesh" data="Fluid-Solid-Mesh-Temperature"/>
+         <post-processing:IQN-ILS>
+            <preconditioner type="residual-sum"/>
+            <filter type="QR1" limit="1e-06"/>
+            <initial-relaxation value="0.1"/>
+            <max-used-iterations value="50"/>
+            <timesteps-reused value="8"/>
+            <data name="Solid-Fluid-Mesh-HeatTransfer" mesh="Solid-Fluid-Mesh"/>
+            <data name="Solid-Fluid-Mesh-Temperature" mesh="Solid-Fluid-Mesh"/>
+            <data name="Fluid-Solid-Mesh-HeatTransfer" mesh="Fluid-Solid-Mesh"/>
+            <data name="Fluid-Solid-Mesh-Temperature" mesh="Fluid-Solid-Mesh"/>
+         </post-processing:IQN-ILS>
+      </coupling-scheme:parallel-implicit>
+   </solver-interface>
+</precice-configuration>
