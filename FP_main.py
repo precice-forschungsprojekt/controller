@@ -95,6 +95,7 @@ parser.add_argument("--input-config", default="./examples/2/topology.yaml", help
 parser.add_argument("--output-xml", default="test.xml", help="Output precice XML config file")
 parser.add_argument("--format", choices=["yaml", "json"], default="yaml", help="Format of the input configuration file")
 parser.add_argument("--test-all", action='store_true', help="If this is true then we run in test mode and we generate all XMLs and compare them")
+parser.add_argument("-h", "--help", action="help", help="Show this help message and exit")
 
 # parsing the arguments into fields
 args = parser.parse_args()
