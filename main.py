@@ -25,7 +25,7 @@ def run_one_generate(input_file_name : str, output_xml_file : str):
 
     # Open and parse the YAML file
     config_file = open(input_file_name)
-    config = yaml.load(config_file.read())
+    config = yaml.load(config_file.read(), Loader=yaml.SafeLoader)
     logging.info("Input YML file:\t" + input_file_name)
     logging.info("building the user input info ... ")
 
