@@ -18,6 +18,9 @@ from xml_diff import compare
 # to copy file
 import shutil
 
+import xmltodict
+import json
+
 # ====================== START XML generation ========================
 def run_one_generate(input_file_name : str, output_xml_file : str):
     """ Function to run one XML file generation """
@@ -46,6 +49,99 @@ def run_one_generate(input_file_name : str, output_xml_file : str):
     pass
 # ====================== END XML generation ========================
 
+# import hashlib
+#
+#
+# def compute_canonical_hash(file_name):
+#     with open(file_name, 'rb') as f:
+#         xml_content = f.read()
+#     root = lxml.etree.fromstring(xml_content)
+#     canonical_xml = lxml.etree.tostring(root, method='c14n')
+#     hash_func = hashlib.sha256()
+#     hash_func.update(canonical_xml)
+#     return hash_func.hexdigest()
+#
+# def compare_files_by_canonical_hash(ref_file_name, out_file_name):
+#     reference_hash = compute_canonical_hash(ref_file_name)
+#     test_hash = compute_canonical_hash(out_file_name)
+#
+#     if reference_hash == test_hash:
+#         print("The files are identical.")
+#     else:
+#         print("The files are different.")
+#
+# # Example usage
+# # ref_file_name = 'path/to/reference/file'
+# # out_file_name = 'path/to/output/file'
+# # compare_files_by_canonical_hash(ref_file_name, out_file_name)
+#
+#
+#
+#
+# def remove_namespace_prefixes(tree):
+#     for elem in tree.getiterator():
+#         if not hasattr(elem.tag, 'find'):
+#             continue
+#         i = elem.tag.find('}')
+#         if i > 0:
+#             elem.tag = elem.tag[i+1:]
+#     return tree
+#
+# def compare_xml_trees(file1, file2):
+#     try:
+#         tree1 = lxml.etree.parse(file1)
+#         tree1 = remove_namespace_prefixes(tree1)
+#     except lxml.etree.XMLSyntaxError as e:
+#         print(f"Error parsing {file1}: {e}")
+#         return False
+#
+#     try:
+#         tree2 = lxml.etree.parse(file2)
+#         tree2 = remove_namespace_prefixes(tree2)
+#     except lxml.etree.XMLSyntaxError as e:
+#         print(f"Error parsing {file2}: {e}")
+#         return False
+#
+#     if lxml.etree.tostring(tree1) == lxml.etree.tostring(tree2):
+#         print("The XML files are identical.")
+#     else:
+#         print("The XML files are different.")
+#
+# # Example usage
+# # ref_file_name = 'path/to/reference/file'
+# # out_file_name = 'path/to/output/file'
+# # compare_xml_trees(ref_file_name, out_file_name)
+#
+#
+#
+# def normalize_xml(file_name):
+#     with open(file_name, 'r') as file:
+#         xml_content = file.read()
+#     return xmltodict.parse(xml_content)
+#
+# def compare_xml_content(file1, file2):
+#     xml1 = normalize_xml(file1)
+#     xml2 = normalize_xml(file2)
+#
+#     if json.dumps(xml1, sort_keys=True) == json.dumps(xml2, sort_keys=True):
+#         print("The XML files are identical.")
+#     else:
+#         print("The XML files are different.")
+#
+# # Example usage
+# # ref_file_name = 'path/to/reference/file'
+# # out_file_name = 'path/to/output/file'
+# # compare_xml_content(ref_file_name, out_file_name)
+
+
+
+
+
+
+
+
+
+
 # ==================== START MAIN =================
 def main():
     log_level = getattr(logging, "INFO", None)
@@ -69,6 +165,9 @@ def main():
         logging.info("Execute all test cases ... ")
         # ./examples/*/topology.yaml
         dirs = os.listdir("./examples/")
+
+        dirs = sorted(dirs, key=int)
+
         print( dirs )
         for dir in dirs :
             in_yaml_file_name = "./examples/" + dir + "/topology.yaml"
@@ -83,6 +182,9 @@ def main():
                 test = os.stat(out_file_name)
                 #dom2 = lxml.etree.parse(out_file_name).getroot()
                 #comparison = compare(dom1, dom2)
+
+                # compare_xml_content(ref_file_name, out_file_name)
+
                 if (refernce.st_size == test.st_size):
                     # the two files are equal
                     logging.info("Test " +  dir + " OK ")
@@ -91,7 +193,7 @@ def main():
                     os.unlink(out_file_name)
                     pass
                 else:
-                    # size differe, jus issue an ERROR
+                    # size difference, jus issue an ERROR
                     logging.info("Test " + dir + " FAILED ")
                     pass
                 pass
