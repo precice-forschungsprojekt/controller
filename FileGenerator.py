@@ -5,6 +5,7 @@ import yaml
 from ui_struct.UI_UserInput import UI_UserInput
 from myutils.UT_PCErrorLogging import UT_PCErrorLogging
 from Logger import Logger
+import shutil
 
 class FileGenerator:
     def __init__(self, file: Path) -> None:
@@ -52,6 +53,53 @@ class FileGenerator:
 
         self.logger.success(f"XML generation completed successfully: {target}")
 
+    def generate_README(self) -> None:
+        """Generates the README.md file"""
+        try:
+            origin_template_README = Path(__file__).parent / "templates" / "template_README.md"
+            self.logger.info("Reading in the template file for README.md")
+            
+            # Check if the template file exists
+            if not origin_template_README.exists():
+                raise FileNotFoundError(f"Template file not found: {origin_template_README}")
+            
+            # Read the template content
+            template_content = origin_template_README.read_text(encoding="utf-8")
+            
+            # Set the target for the README.md
+            target = self.structure.README
+
+            self.logger.info(f"Writing the template to the target: {str(target)}")
+            
+            # Write content to the target file
+            with open(target, 'w', encoding="utf-8") as README:
+                README.write(template_content)
+
+            self.logger.success(f"Successfully written README.md content to: {str(target)}")
+
+        except FileNotFoundError as fileNotFoundException:
+            self.logger.error(f"File not found: {fileNotFoundException}")
+        except PermissionError as premissionErrorException:
+            self.logger.error(f"Permission error: {premissionErrorException}")
+        except Exception as generalExcpetion:
+            self.logger.error(f"An unexpected error occurred: {generalExcpetion}")
+
+    def generate_run(self) -> None:
+        """Generates the run.sh file"""
+        #TODO
+        pass
+
+    def generate_clean(self) -> None:
+        """Generates the clean.sh file."""
+        #TODO
+        pass
+
+    def generate_adapter_config(self) -> None:
+        """Generates the adapter-config.json file."""
+        #TODO
+        pass
+
 if __name__ == "__main__":
     fileGenerator = FileGenerator(Path("./examples/1/topology.yaml"))
     fileGenerator.generate_precice_config()
+    fileGenerator.generate_README()
