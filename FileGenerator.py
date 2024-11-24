@@ -8,6 +8,8 @@ from Logger import Logger
 
 class FileGenerator:
     def __init__(self, file: Path) -> None:
+        """ Class which takes care of generating the content of the necessary files
+            :param file: Input yaml file that is needed for generation of the precice-config.xml file"""
         self.input_file = file
         self.precice_config = PS_PreCICEConfig()
         self.mylog = UT_PCErrorLogging()
