@@ -17,6 +17,8 @@ class FileGenerator:
 
     def generate_precice_config(self) -> None:
         """Generates the precice-config.xml file based on the topology.yaml file."""
+        
+        # Try to open the yaml file and get the configuration
         try:
             with open(self.input_file, "r") as config_file:
                 config = yaml.load(config_file.read(), Loader=yaml.SafeLoader)
@@ -28,13 +30,17 @@ class FileGenerator:
             self.logger.error(f"Error reading input YAML file: {str(e)}")
             return
 
+        # Build the ui
         self.logger.info("Building the user input info...")
         self.user_ui.init_from_yaml(config, self.mylog)
 
+        # Generate the precice-config.xml file
         self.logger.info("Generating preCICE config...")
         self.precice_config.create_config(self.user_ui)
 
-        target = str(self.structure.config_dir / "precice-config.xml")
+        # Set the target of the file and write out to it
+        # Warning: self.structure.precice_config is of type Path, so it needs to be converted to str
+        target = str(self.structure.precice_config)
         try:
             self.logger.info(f"Writing preCICE config to {target}...")
             self.precice_config.write_precice_xml_config(target, self.mylog)
@@ -45,5 +51,5 @@ class FileGenerator:
         self.logger.success(f"XML generation completed successfully: {target}")
 
 if __name__ == "__main__":
-    a = FileGenerator(Path("./examples/3/topology.yaml"))
-    a.generate_precice_config()
+    fileGenerator = FileGenerator(Path("./examples/1/topology.yaml"))
+    fileGenerator.generate_precice_config()
