@@ -42,6 +42,8 @@ class StructureHandler:
             self.config_dir / "adapter-config.json"
         ]
 
+        self.clean, self.run, self.README, self.precice_config, self.adapter_config = files
+
         for file in files:
             try:
                 file.touch(exist_ok=True)
