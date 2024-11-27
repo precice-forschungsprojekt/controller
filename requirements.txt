@@ -1,0 +1,6 @@
+#generated using pip freeze > requirements.txt
+lxml==5.3.0
+PyYAML==6.0.2
+termcolor==2.5.0
+xml_diff==0.7.0
+#xmltodict==0.14.2
