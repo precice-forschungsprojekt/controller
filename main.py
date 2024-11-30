@@ -7,9 +7,13 @@ import logging
 import yaml
 import pprint
 import argparse
+from dotenv import load_dotenv
 from myutils.UT_PCErrorLogging import UT_PCErrorLogging
 from ui_struct.UI_UserInput import UI_UserInput
 from precice_struct import PS_PreCICEConfig
+
+# Load environment variables
+load_dotenv('config.env')
 
 # this is important for XML file diffing
 import lxml.etree
@@ -19,91 +23,63 @@ from xml_diff import compare
 import shutil
 
 # ====================== START XML generation ========================
-def run_one_generate(input_file_name : str, output_xml_file : str):
+def run_one_generate(input_file_name : str = None, output_xml_file : str = None):
     """ Function to run one XML file generation """
     mylog = UT_PCErrorLogging()
 
+    # Use environment variables with fallback
+    if input_file_name is None:
+        input_file_name = os.getenv('INPUT_TOPOLOGY', './examples/1/topology.yaml')
+    
+    if output_xml_file is None:
+        output_xml_file = os.getenv('OUTPUT_XML', './precice-config.xml')
+
     # Open and parse the YAML file
-    config_file = open(input_file_name)
-    config = yaml.load(config_file.read(), Loader=yaml.SafeLoader)
-    logging.info("Input YML file:\t" + input_file_name)
-    logging.info("building the user input info ... ")
+    try:
+        with open(input_file_name, 'r') as config_file:
+            config = yaml.load(config_file.read(), Loader=yaml.SafeLoader)
+        logging.info(f"Input YML file: {input_file_name}")
+        logging.info("Building the user input info...")
 
-    user_ui = UI_UserInput()
-    user_ui.init_from_yaml(config, mylog)
+        user_ui = UI_UserInput()
+        user_ui.init_from_yaml(config, mylog)
 
-    # dummy initial and empty precice constructor
-    precice_config = PS_PreCICEConfig()
-    logging.info("generating preCICE config ... ")
-    # build up the precice data structure
-    precice_config.create_config(user_ui)
+        # dummy initial and empty precice constructor
+        precice_config = PS_PreCICEConfig()
+        logging.info("Generating preCICE config...")
+        # build up the precice data structure
+        precice_config.create_config(user_ui)
 
-    # write our XML config
-    logging.info("write preCICE config ... ")
-    precice_config.write_precice_xml_config(output_xml_file, mylog)
+        # write our XML config
+        logging.info("Writing preCICE config...")
+        precice_config.write_precice_xml_config(output_xml_file, mylog)
 
-    logging.info("End generate")
-    pass
+        logging.info("End generate")
+    except Exception as e:
+        logging.error(f"Error during XML generation: {e}")
+
 # ====================== END XML generation ========================
 
 # ==================== START MAIN =================
 def main():
-    log_level = getattr(logging, "INFO", None)
-    logging.basicConfig(level=log_level)
+    # Configure logging
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
-    # define the argument list of the main function
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--input-config", default="./examples/2/topology.yaml", help="Name of the input YML file")
-    parser.add_argument("--output-xml", default="test.xml", help="Output precice XML config file")
-    parser.add_argument("--test-all", default="false", help="If this is true then we run in test mode and we generate all XMLs and we compare them")
-
-    # parsing the arguments into fields
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='preCICE Controller')
+    parser.add_argument('--input', help='Input topology YAML file')
+    parser.add_argument('--output', help='Output XML configuration file')
     args = parser.parse_args()
-    input_file_name_arg = args.input_config
-    output_xml_file_arg = args.output_xml
-    test_all = args.test_all
 
-    # test if we are in test mode
-    if test_all == "true":
-        # get all directories from the example directory and for each call the method
-        logging.info("Execute all test cases ... ")
-        # ./examples/*/topology.yaml
-        dirs = os.listdir("./examples/")
-        print( dirs )
-        for dir in dirs :
-            in_yaml_file_name = "./examples/" + dir + "/topology.yaml"
-            file_exists = os.path.isfile(in_yaml_file_name)
-            if file_exists:
-                # if this YAML file exists then call the function for it
-                ref_file_name = "./testing/output/" + dir + "_out_controller.xml"
-                out_file_name = "./testing/output/" + dir + "_out_controller_tmp.xml"
-                run_one_generate(in_yaml_file_name, out_file_name)
-                # once we generated the out file then we compare it
-                refernce = os.stat(ref_file_name)
-                test = os.stat(out_file_name)
-                #dom2 = lxml.etree.parse(out_file_name).getroot()
-                #comparison = compare(dom1, dom2)
-                if (refernce.st_size == test.st_size):
-                    # the two files are equal
-                    logging.info("Test " +  dir + " OK ")
-                    #overwrite the file
-                    shutil.copyfile(out_file_name, ref_file_name)
-                    os.unlink(out_file_name)
-                    pass
-                else:
-                    # size differe, jus issue an ERROR
-                    logging.info("Test " + dir + " FAILED ")
-                    pass
-                pass
-        logging.info("Finished all testing ... ")
-    else:
-        # just call with the default arguments
-        run_one_generate(input_file_name_arg, output_xml_file_arg)
-        pass
+    # Use command-line args or environment variables
+    input_file = args.input or os.getenv('INPUT_TOPOLOGY', './examples/1/topology.yaml')
+    output_file = args.output or os.getenv('OUTPUT_XML', './precice-config.xml')
+
+    run_one_generate(input_file, output_file)
 
 if __name__ == "__main__":
     main()
-
-
-
-

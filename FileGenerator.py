@@ -6,6 +6,8 @@ from ui_struct.UI_UserInput import UI_UserInput
 from myutils.UT_PCErrorLogging import UT_PCErrorLogging
 from Logger import Logger
 import shutil
+import os
+from dotenv import load_dotenv
 
 class FileGenerator:
     def __init__(self, file: Path) -> None:
@@ -99,7 +101,14 @@ class FileGenerator:
         #TODO
         pass
 
+# Load environment variables
+load_dotenv('config.env')
+
 if __name__ == "__main__":
-    fileGenerator = FileGenerator(Path("./examples/1/topology.yaml"))
+    # Use environment variable or fallback to default
+    example_dir = os.getenv('EXAMPLE_DIR', './examples/1')
+    topology_file = os.path.join(example_dir, 'topology.yaml')
+    
+    fileGenerator = FileGenerator(Path(topology_file))
     fileGenerator.generate_precice_config()
     fileGenerator.generate_README()
