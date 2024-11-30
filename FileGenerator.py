@@ -100,6 +100,6 @@ class FileGenerator:
         pass
 
 if __name__ == "__main__":
-    fileGenerator = FileGenerator(Path("./examples/1/topology.yaml"))
+    fileGenerator = FileGenerator(Path("examples/1/topology.yaml"))
     fileGenerator.generate_precice_config()
     fileGenerator.generate_README()

@@ -173,6 +173,10 @@ class TopologyValidator:
         """
         errors = []
         
+        # Ensure the topology file path is absolute or relative to topology_dir
+        if not os.path.isabs(topology_file):
+            topology_file = os.path.join(self.topology_dir, topology_file)
+        
         try:
             with open(topology_file, 'r') as f:
                 topology_data = yaml.safe_load(f)
@@ -308,17 +312,30 @@ class TopologyValidator:
         """
         validation_results = {}
         
+        # Ensure the topology directory exists
+        if not os.path.isdir(self.topology_dir):
+            print(f"Error: Topology directory not found - {self.topology_dir}")
+            return validation_results
+        
+        # Iterate through YAML files in the directory
         for filename in os.listdir(self.topology_dir):
-            if filename.endswith('-topology.yaml'):
-                filepath = os.path.join(self.topology_dir, filename)
-                errors = self.validate_topology(filepath)
-                if errors:
-                    validation_results[filename] = errors
+            if filename.endswith('.yaml') or filename.endswith('.yml'):
+                # Construct full file path
+                full_path = os.path.join(self.topology_dir, filename)
+                
+                # Validate the topology file
+                file_errors = self.validate_topology(full_path)
+                
+                # Store errors if any
+                if file_errors:
+                    validation_results[filename] = file_errors
         
         return validation_results
 
 def main():
-    topology_dir = r'c:/Users/thore/Desktop/precice/Forschungsprojekt/controller/topologies'
+    # Use relative path from the script's location
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    topology_dir = os.path.join(script_dir, 'topologies')
     validator = TopologyValidator(topology_dir)
     
     # Validate all topologies
