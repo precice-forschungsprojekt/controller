@@ -1,2 +1,17 @@
-pyyaml==6.0.1
-pydantic==2.6.4
+# Core Dependencies
+pydantic>=2.0.0
+pyyaml>=6.0.0
+lxml>=4.9.0
+
+# CLI Support
+argparse>=1.4.0
+
+# Development and Testing
+pytest>=7.3.0
+mypy>=1.3.0
+black>=23.3.0
+flake8>=6.0.0
+
+# Optional: Type checking
+types-pyyaml>=6.0.0
+types-setuptools>=67.8.0

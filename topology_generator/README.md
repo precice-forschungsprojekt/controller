@@ -104,82 +104,80 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🌐 preCICE Topology Configuration Generator
 
-## 🚀 Advanced Configuration Management
+## 🚀 Quick Start
 
-### 🔧 Flexible Generation Options
-
-The Topology Configuration Generator now supports advanced configuration through `TopologyGeneratorConfig`:
-
-```python
-config = {
-    'log_level': 'DEBUG',
-    'xml_pretty_print': True,
-    'overwrite_existing': False,
-    'backup_existing': True,
-    'custom_data_mappings': {
-        'Force': 'CustomForce',
-        'Displacement': 'CustomDisplacement'
-    }
-}
-
-generator = PreciceConfigGenerator(
-    topology_file, 
-    generator_config=config
-)
+### Installation
+```bash
+pip install -r requirements.txt
 ```
 
-### ✨ Key Configuration Features
+### CLI Usage
 
-- **Logging Control**
-  - Configurable log levels
-  - Logging to console and file
-  - Detailed runtime information
+#### Basic Generation
+```bash
+python -m topology_generator.cli topology.yaml
+```
 
-- **File Generation Options**
-  - Overwrite protection
-  - Automatic backup of existing configurations
-  - Custom output directory support
+#### Advanced CLI Options
+```bash
+# Validate topology configuration
+python -m topology_generator.cli topology.yaml -v
 
-- **Advanced Mapping**
-  - Custom data name mappings
-  - Mesh transformation rules
-  - Flexible enum handling
+# Specify custom output directory
+python -m topology_generator.cli topology.yaml -o custom_output
 
-### 🛡️ Validation Enhancements
+# Set logging verbosity
+python -m topology_generator.cli topology.yaml -l DEBUG
 
-- Comprehensive topology configuration checks
-- Strict and flexible validation modes
-- Detailed error reporting
-- Custom mapping and transformation support
+# Use custom generator configuration
+python -m topology_generator.cli topology.yaml -c generator_config.json
+```
 
-## 📦 Configuration Options
+### CLI Configuration Options
 
-### Logging Configuration
-- `log_level`: Set logging verbosity
-  - `'DEBUG'`: Most detailed
-  - `'INFO'`: Standard logging
-  - `'WARNING'`: Only warnings and errors
-  - `'ERROR'`: Critical errors only
+| Option | Description | Example |
+|--------|-------------|---------|
+| `-c, --config` | Custom generator configuration | `topology.yaml -c config.json` |
+| `-o, --output` | Custom output directory | `topology.yaml -o simulation_output` |
+| `-l, --log-level` | Set logging verbosity | `topology.yaml -l DEBUG` |
+| `-v, --validate` | Validate configuration only | `topology.yaml -v` |
+| `-n, --dry-run` | Simulate generation | `topology.yaml -n` |
 
-### File Generation
-- `overwrite_existing`: Control file overwriting
-- `backup_existing`: Create backups of existing files
-- `xml_pretty_print`: Format XML with indentation
+## 🔧 Configuration File Examples
 
-### Custom Mappings
-- `custom_data_mappings`: Rename data fields
-- `custom_mesh_transformations`: Modify mesh configurations
+### JSON Configuration
+```json
+{
+    "log_level": "DEBUG",
+    "xml_pretty_print": true,
+    "overwrite_existing": false,
+    "custom_data_mappings": {
+        "Force": "CustomForce"
+    }
+}
+```
 
-## 💻 Usage Example
+### YAML Configuration
+```yaml
+log_level: INFO
+xml_pretty_print: true
+overwrite_existing: false
+custom_data_mappings:
+    Force: CustomForce
+```
 
+## 💻 Programmatic Usage
+
+### Basic Example
 ```python
-from controller.topology_generator import PreciceConfigGenerator
+from topology_generator import PreciceConfigGenerator
 
-# Basic usage
 generator = PreciceConfigGenerator('topology.yaml')
-generator.generate()
+result = generator.generate()
+```
 
-# Advanced configuration
+### Advanced Configuration
+```python
 config = {
     'log_level': 'DEBUG',
     'custom_data_mappings': {
@@ -193,18 +191,27 @@ generator = PreciceConfigGenerator(
 result = generator.generate()
 ```
 
-## 🔍 Generated Artifacts
+## 🛠️ Development
 
-The generator creates:
-- `precice-config.xml`: preCICE configuration
-- `run.sh`: Simulation execution script
-- `clean.sh`: Environment cleanup script
-- `README.md`: Simulation documentation
+### Running Tests
+```bash
+pytest tests/
+```
+
+### Code Formatting
+```bash
+black .
+flake8
+```
 
 ## 📝 Contributing
 
-Contributions are welcome! Please submit pull requests or open issues.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## 📄 License
 
-[Your License Here]
+MIT License
