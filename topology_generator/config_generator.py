@@ -3,8 +3,9 @@ import yaml
 from typing import Dict, Any
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+import re
 
-from topology_schema import TopologyConfig
+from controller.topology_generator.topology_schema import TopologyConfig
 
 class PreciceConfigGenerator:
     def __init__(self, topology_file: str):
@@ -32,8 +33,8 @@ class PreciceConfigGenerator:
         
         :return: Path to generated precice-config.xml
         """
-        # Create root element
-        root = ET.Element("precice-configuration")
+        # Create root element with namespace
+        root = ET.Element("precice-configuration", xmlns="http://www.precice.org/namespace/precice-config")
         
         # Add logging configuration
         log = ET.SubElement(root, "log")
@@ -45,82 +46,87 @@ class PreciceConfigGenerator:
         
         # Add data configurations
         for data in self.topology.data:
-            ET.SubElement(root, "data:" + data.type, name=data.name)
+            ET.SubElement(root, f"{{{root.attrib['xmlns']}}}data:{data.type}", name=data.name)
         
         # Add mesh configurations
         for mesh in self.topology.meshes:
-            mesh_elem = ET.SubElement(root, "mesh", name=mesh.name, dimensions=str(mesh.dimensions))
+            mesh_elem = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}mesh", name=mesh.name, dimensions=str(mesh.dimensions))
             for data_name in mesh.data:
-                ET.SubElement(mesh_elem, "use-data", name=data_name)
+                ET.SubElement(mesh_elem, f"{{{root.attrib['xmlns']}}}use-data", name=data_name)
         
         # Add participant configurations
         for participant in self.topology.participants:
-            participant_elem = ET.SubElement(root, "participant", name=participant.name)
+            participant_elem = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}participant", name=participant.name)
             
             # Provide mesh
-            ET.SubElement(participant_elem, "provide-mesh", name=participant.provides_mesh)
+            ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}provide-mesh", name=participant.provides_mesh)
             
             # Receive meshes
             for recv_mesh in participant.receives_meshes:
-                ET.SubElement(participant_elem, "receive-mesh", 
+                ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}receive-mesh", 
                               name=recv_mesh, 
                               _from=next(p.name for p in self.topology.participants if p.provides_mesh == recv_mesh))
             
             # Read/Write data
             for read_data in participant.read_data:
-                ET.SubElement(participant_elem, "read-data", name=read_data, mesh=participant.provides_mesh)
+                ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}read-data", name=read_data, mesh=participant.provides_mesh)
             
             for write_data in participant.write_data:
-                ET.SubElement(participant_elem, "write-data", name=write_data, mesh=participant.provides_mesh)
+                ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}write-data", name=write_data, mesh=participant.provides_mesh)
             
             # Mapping configurations
             if participant.mapping_type == "rbf":
-                rbf_read = ET.SubElement(participant_elem, "mapping:rbf", 
+                rbf_read = ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}mapping:rbf", 
                                          direction="read", 
                                          _from=participant.receives_meshes[0] if participant.receives_meshes else "",
                                          to=participant.provides_mesh,
                                          constraint=participant.mapping_constraint)
-                ET.SubElement(rbf_read, "basis-function:thin-plate-splines")
+                ET.SubElement(rbf_read, f"{{{root.attrib['xmlns']}}}basis-function:thin-plate-splines")
                 
-                rbf_write = ET.SubElement(participant_elem, "mapping:rbf", 
+                rbf_write = ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}mapping:rbf", 
                                           direction="write", 
                                           _from=participant.provides_mesh,
                                           to=participant.receives_meshes[0] if participant.receives_meshes else "",
                                           constraint=participant.mapping_constraint)
-                ET.SubElement(rbf_write, "basis-function:thin-plate-splines")
+                ET.SubElement(rbf_write, f"{{{root.attrib['xmlns']}}}basis-function:thin-plate-splines")
         
         # Add communication method (default to sockets)
         if len(self.topology.participants) > 1:
-            m2n = ET.SubElement(root, "m2n:sockets", 
+            m2n = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}m2n:sockets", 
                                 acceptor=self.topology.participants[0].name, 
                                 connector=self.topology.participants[1].name, 
                                 exchange_directory="..")
         
         # Add coupling scheme
-        coupling = ET.SubElement(root, f"coupling-scheme:{self.topology.coupling.type}")
-        ET.SubElement(coupling, "time-window-size", value=str(self.topology.coupling.time_window_size))
-        ET.SubElement(coupling, "max-time", value=str(self.topology.coupling.max_time))
+        coupling = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}coupling-scheme:{self.topology.coupling.type}")
+        ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}time-window-size", value=str(self.topology.coupling.time_window_size))
+        ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}max-time", value=str(self.topology.coupling.max_time))
         
-        participants = ET.SubElement(coupling, "participants", 
+        participants = ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}participants", 
                                      first=self.topology.participants[0].name, 
                                      second=self.topology.participants[1].name)
         
         # Add exchanges
         for exchange in self.topology.coupling.exchanges:
-            ET.SubElement(coupling, "exchange", 
+            ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}exchange", 
                           data=exchange.get('data', ''), 
                           mesh=exchange.get('mesh', ''), 
                           _from=exchange.get('from', ''), 
                           to=exchange.get('to', ''))
         
         # Convert to pretty-printed XML
-        xml_str = ET.tostring(root, encoding='unicode')
-        pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
+        xml_declaration = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        ET.register_namespace('', "http://www.precice.org/namespace/precice-config")
+        xml_str = ET.tostring(root, encoding='unicode', method='xml')
+        
+        # Use manual pretty printing
+        xml_str = re.sub(r'>\s*<', '>\n<', xml_str)
+        xml_str = xml_declaration + xml_str
         
         # Write to file
         config_path = os.path.join(self.output_dir, "precice-config.xml")
         with open(config_path, 'w') as f:
-            f.write(pretty_xml)
+            f.write(xml_str)
         
         return config_path
     
@@ -208,7 +214,7 @@ class PreciceConfigGenerator:
 
 def main():
     # Example usage
-    topology_file = os.path.join(os.path.dirname(__file__), "example_topology.yaml")
+    topology_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "example_topology.yaml"))
     generator = PreciceConfigGenerator(topology_file)
     generator.generate()
 
