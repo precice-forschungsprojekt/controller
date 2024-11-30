@@ -1,0 +1,84 @@
+---
+# preCICE Configuration Topology for Elastic Tube 3D Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 3
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Force
+    type: vector
+  - name: DisplacementDelta
+    type: vector
+
+meshes:
+  - name: Fluid-Mesh-Nodes
+    dimensions: 3
+    data: 
+      - DisplacementDelta
+
+  - name: Fluid-Mesh-Faces
+    dimensions: 3
+    data: 
+      - Force
+
+  - name: Solid-Mesh
+    dimensions: 3
+    data: 
+      - DisplacementDelta
+      - Force
+
+participants:
+  - name: Fluid
+    receives_mesh:
+      - name: Solid-Mesh
+        from: Solid
+        safety_factor: 1.5
+    provides_mesh: 
+      - Fluid-Mesh-Nodes
+      - Fluid-Mesh-Faces
+    writes_data:
+      - name: Force
+        mesh: Fluid-Mesh-Faces
+    reads_data:
+      - name: DisplacementDelta
+        mesh: Fluid-Mesh-Nodes
+    mapping:
+      - type: nearest-projection
+        direction: write
+        from_mesh: Fluid-Mesh-Faces
+        to_mesh: Solid-Mesh
+        constraint: conservative
+      - type: nearest-projection
+        direction: read
+        from_mesh: Solid-Mesh
+        to_mesh: Fluid-Mesh-Nodes
+        constraint: consistent
+
+  - name: Solid
+    provides_mesh: 
+      - Solid-Mesh
+    writes_data:
+      - name: DisplacementDelta
+        mesh: Solid-Mesh
+    reads_data:
+      - name: Force
+        mesh: Solid-Mesh
+    watch_point:
+      name: Tube-Midpoint
+      mesh: Solid-Mesh
+      coordinate: [0.0, 0.005, 0.025]
+
+communication:
+  type: sockets
+  acceptor: Fluid
+  connector: Solid
+  exchange_directory: ..
