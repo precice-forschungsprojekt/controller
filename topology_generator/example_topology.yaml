@@ -26,6 +26,8 @@ participants:
       - Displacement
     write_data: 
       - Force
+    mapping_type: RBF
+    mapping_constraint: consistent
   - name: Solid
     provides_mesh: Solid-Mesh
     receives_meshes: 
@@ -34,11 +36,16 @@ participants:
       - Force
     write_data: 
       - Displacement
+    mapping_type: RBF
+    mapping_constraint: consistent
 
 coupling:
-  type: serial-explicit
+  type: SERIAL_EXPLICIT
   time_window_size: 0.025
   max_time: 2.5
+  participants: 
+    - Fluid
+    - Solid
   exchanges:
     - data: Force
       mesh: Solid-Mesh

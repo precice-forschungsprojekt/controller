@@ -14,18 +14,26 @@ class PreciceConfigGenerator:
         
         :param topology_file: Path to the topology YAML configuration
         """
-        with open(topology_file, 'r') as f:
-            topology_data = yaml.safe_load(f)
+        try:
+            with open(topology_file, 'r') as f:
+                topology_data = yaml.safe_load(f)
+            
+            # Validate topology configuration
+            self.topology = TopologyConfig(**topology_data)
+            
+            # Perform comprehensive topology validation
+            self.topology.validate_topology()
+            
+            # Create output directory
+            self.output_dir = os.path.join(
+                os.path.dirname(topology_file), 
+                f"{self.topology.name}-simulation"
+            )
+            os.makedirs(self.output_dir, exist_ok=True)
         
-        # Validate topology configuration
-        self.topology = TopologyConfig(**topology_data)
-        
-        # Create output directory
-        self.output_dir = os.path.join(
-            os.path.dirname(topology_file), 
-            f"{self.topology.name}-simulation"
-        )
-        os.makedirs(self.output_dir, exist_ok=True)
+        except (yaml.YAMLError, ValidationError) as e:
+            print(f"Topology Configuration Error: {e}")
+            raise
     
     def generate_precice_config(self) -> str:
         """
