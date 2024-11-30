@@ -1,44 +1,53 @@
 import os
 import yaml
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 import re
-
 from pydantic import ValidationError
+
 from controller.topology_generator.topology_schema import TopologyConfig, MappingType, CouplingSchemeType, DataType
 
 class PreciceConfigGenerator:
-    def __init__(self, topology_file: str):
+    def __init__(self, topology_file: str, output_dir: Optional[str] = None):
         """
-        Initialize the generator with a topology YAML file
+        Initialize the PreciceConfigGenerator
         
-        :param topology_file: Path to the topology YAML configuration
+        :param topology_file: Path to the topology YAML file
+        :param output_dir: Optional output directory for generated files
         """
+        # Load topology file
+        with open(topology_file, 'r') as f:
+            topology_data = yaml.safe_load(f)
+        
+        # Convert enum values
+        topology_data = self._convert_enums(topology_data)
+        
+        # Validate topology data against schema
         try:
-            with open(topology_file, 'r') as f:
-                topology_data = yaml.safe_load(f)
-            
-            # Convert enum values
-            topology_data = self._convert_enums(topology_data)
-            
-            # Validate topology configuration
             self.topology = TopologyConfig(**topology_data)
+        except ValidationError as e:
+            # Enhance Pydantic validation error with more context
+            detailed_errors = []
+            for error in e.errors():
+                loc = ' -> '.join(str(x) for x in error.get('loc', []))
+                detailed_errors.append(f"{loc}: {error.get('msg', 'Validation failed')}")
             
-            # Perform comprehensive topology validation
-            self.topology.validate_topology()
-            
-            # Create output directory
-            self.output_dir = os.path.join(
-                os.path.dirname(topology_file), 
-                f"{self.topology.name}-simulation"
-            )
-            os.makedirs(self.output_dir, exist_ok=True)
+            raise ValueError(f"Topology configuration validation failed:\n" + 
+                             "\n".join(detailed_errors)) from e
         
-        except (yaml.YAMLError, ValidationError) as e:
-            print(f"Topology Configuration Error: {e}")
-            raise
-    
+        # Perform additional custom validation
+        self._validate_topology_configuration()
+        
+        # Set output directory
+        self.output_dir = output_dir or os.path.join(
+            os.path.dirname(topology_file), 
+            f"{self.topology.name}-simulation"
+        )
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(self.output_dir, exist_ok=True)
+
     def _convert_enums(self, topology_data):
         """
         Convert integer enum values to their corresponding enum types
@@ -93,6 +102,82 @@ class PreciceConfigGenerator:
                     )
         
         return topology_data
+
+    def _validate_topology_configuration(self):
+        """
+        Perform comprehensive validation of the topology configuration
+        
+        Checks include:
+        - Unique participant names
+        - Consistent data exchange
+        - Mesh and data existence
+        - Coupling participant validation
+        
+        Raises:
+            ValueError: If configuration fails validation
+        """
+        # Check for unique participant names
+        participant_names = [p.name for p in self.topology.participants]
+        if len(participant_names) != len(set(participant_names)):
+            raise ValueError("Participant names must be unique")
+        
+        # Validate meshes
+        all_mesh_names = [mesh.name for mesh in self.topology.meshes]
+        for participant in self.topology.participants:
+            # Check provided mesh exists
+            if participant.provides_mesh not in all_mesh_names:
+                raise ValueError(f"Participant {participant.name} provides non-existent mesh: {participant.provides_mesh}")
+            
+            # Check received meshes exist
+            for recv_mesh in participant.receives_meshes:
+                if recv_mesh not in all_mesh_names:
+                    raise ValueError(f"Participant {participant.name} receives non-existent mesh: {recv_mesh}")
+        
+        # Validate data
+        all_data_names = [data.name for data in self.topology.data]
+        for participant in self.topology.participants:
+            # Check read/write data exists
+            for read_data in participant.read_data:
+                if read_data not in all_data_names:
+                    raise ValueError(f"Participant {participant.name} reads non-existent data: {read_data}")
+            
+            for write_data in participant.write_data:
+                if write_data not in all_data_names:
+                    raise ValueError(f"Participant {participant.name} writes non-existent data: {write_data}")
+        
+        # Validate coupling configuration
+        if len(self.topology.participants) < 2:
+            raise ValueError("At least two participants are required for coupling")
+        
+        coupling_participant_names = set(self.topology.coupling.participants)
+        config_participant_names = set(p.name for p in self.topology.participants)
+        
+        if not coupling_participant_names.issubset(config_participant_names):
+            raise ValueError("Coupling participants must be defined in the topology")
+        
+        # Validate exchanges
+        for exchange in self.topology.coupling.exchanges:
+            # Check data exists
+            if exchange.get('data') not in all_data_names:
+                raise ValueError(f"Exchange references non-existent data: {exchange.get('data')}")
+            
+            # Check mesh exists
+            if exchange.get('mesh') not in all_mesh_names:
+                raise ValueError(f"Exchange references non-existent mesh: {exchange.get('mesh')}")
+            
+            # Check from/to participants exist
+            if exchange.get('from') not in config_participant_names:
+                raise ValueError(f"Exchange 'from' participant not found: {exchange.get('from')}")
+            
+            if exchange.get('to') not in config_participant_names:
+                raise ValueError(f"Exchange 'to' participant not found: {exchange.get('to')}")
+        
+        # Validate time configuration
+        if self.topology.coupling.time_window_size <= 0:
+            raise ValueError("Time window size must be positive")
+        
+        if self.topology.coupling.max_time <= 0:
+            raise ValueError("Maximum simulation time must be positive")
 
     def _get_enum_value(self, enum_value):
         """

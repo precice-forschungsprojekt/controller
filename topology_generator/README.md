@@ -101,3 +101,83 @@ Please read CONTRIBUTING.md for details on our code of conduct and the process f
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🌐 preCICE Topology Configuration Generator
+
+## 🚀 Overview
+
+The Topology Configuration Generator is an advanced tool for automating the creation of preCICE simulation configurations. It provides a flexible, user-friendly YAML-based interface for defining complex multiphysics simulation topologies.
+
+## ✨ Key Features
+
+### 🔍 Comprehensive Validation
+- **Robust Configuration Checking**
+  - Unique participant name validation
+  - Consistent data exchange verification
+  - Mesh and data existence checks
+  - Coupling participant validation
+
+### 🧩 Flexible Configuration
+- Support for multiple enum representations
+- Intelligent type conversion
+- Detailed error reporting
+
+### 🛡️ Advanced Validation Mechanisms
+- Pydantic-based schema validation
+- Custom topology configuration checks
+- Comprehensive error messages
+
+## 🔧 Configuration Validation Checks
+
+The generator performs the following comprehensive checks:
+
+1. **Participant Validation**
+   - Ensure unique participant names
+   - Verify provided and received meshes exist
+   - Check read/write data consistency
+
+2. **Topology Constraints**
+   - Minimum two participants required for coupling
+   - Validate coupling participant definitions
+   - Check data and mesh references
+
+3. **Simulation Parameters**
+   - Positive time window size
+   - Valid maximum simulation time
+
+## 📦 Enum Support
+
+Supports flexible enum representations:
+- Integer-based enum values
+- String-based enum values
+- Automatic conversion and validation
+
+## 💻 Usage Example
+
+```yaml
+name: fluid-solid-interaction
+participants:
+  - name: Fluid
+    provides_mesh: Fluid-Mesh
+    mapping_type: 0  # RBF Mapping
+  - name: Solid
+    provides_mesh: Solid-Mesh
+    mapping_type: 1  # Nearest Projection
+```
+
+## 🛠️ Error Handling
+
+Detailed error messages with precise location and context:
+```
+Topology configuration validation failed:
+participants -> name: Must be unique
+data -> type: Invalid data type
+```
+
+## 📝 Contributing
+
+Contributions are welcome! Please submit pull requests or open issues to improve the generator.
+
+## 📄 License
+
+[Your License Here]
