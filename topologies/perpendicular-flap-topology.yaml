@@ -8,10 +8,9 @@ configuration:
 
 logging:
   enabled: true
-  filter: 
-    severity: debug
-    rank: 0
-  format: "---[precice] %ColorizedSeverity% %Message%"
+  sink:
+    filter: "%Severity% > debug and %Rank% = 0"
+    format: "---[precice] %ColorizedSeverity% %Message%"
 
 data:
   - name: Force
@@ -52,7 +51,7 @@ participants:
         to_mesh: Solid-Mesh
         constraint: conservative
         basis_function:
-          name: compact-polynomial-c6
+          type: compact-polynomial-c6
           support_radius: 1.0
       - type: rbf
         direction: read
@@ -60,7 +59,7 @@ participants:
         to_mesh: Fluid-Mesh
         constraint: consistent
         basis_function:
-          name: compact-polynomial-c6
+          type: compact-polynomial-c6
           support_radius: 1.0
 
   - name: Solid
@@ -75,7 +74,7 @@ participants:
     watch_point:
       name: Flap-Tip
       mesh: Solid-Mesh
-      coordinate: [0.0, 1.0]
+      coordinate: [0.0, 1]
 
 communication:
   type: sockets
@@ -86,11 +85,11 @@ communication:
 coupling_scheme:
   type: parallel-implicit
   time_window_size: 0.01
-  max_time: 5.0
+  max_time: 5
+  max_iterations: 50
   participants:
     - first: Fluid
     - second: Solid
-  max_iterations: 50
   data_exchange:
     - data: Force
       mesh: Solid-Mesh
@@ -100,3 +99,27 @@ coupling_scheme:
       mesh: Solid-Mesh
       from: Solid
       to: Fluid
+  convergence_measures:
+    - data: Displacement
+      mesh: Solid-Mesh
+      type: relative
+      limit: 5e-3
+    - data: Force
+      mesh: Solid-Mesh
+      type: relative
+      limit: 5e-3
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: Displacement
+        mesh: Solid-Mesh
+      - name: Force
+        mesh: Solid-Mesh
+    preconditioner:
+      type: residual-sum
+    filter:
+      type: QR2
+      limit: 1e-2
+    initial_relaxation: 0.5
+    max_used_iterations: 100
+    time_windows_reused: 15

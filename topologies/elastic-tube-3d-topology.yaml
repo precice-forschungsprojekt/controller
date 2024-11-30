@@ -82,3 +82,40 @@ communication:
   acceptor: Fluid
   connector: Solid
   exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  max_time_windows: 100
+  time_window_size: 1e-4
+  max_iterations: 30
+  participants:
+    - first: Fluid
+    - second: Solid
+  data_exchange:
+    - data: Force
+      mesh: Solid-Mesh
+      from: Fluid
+      to: Solid
+    - data: DisplacementDelta
+      mesh: Solid-Mesh
+      from: Solid
+      to: Fluid
+  convergence_measures:
+    - data: DisplacementDelta
+      mesh: Solid-Mesh
+      type: relative
+      limit: 1e-3
+    - data: Force
+      mesh: Solid-Mesh
+      type: relative
+      limit: 1e-3
+  acceleration:
+    type: IQN-IMVJ
+    data:
+      - name: DisplacementDelta
+        mesh: Solid-Mesh
+    preconditioner:
+      type: residual-sum
+    initial_relaxation: 0.1
+    max_used_iterations: 10
+    time_windows_reused: 1

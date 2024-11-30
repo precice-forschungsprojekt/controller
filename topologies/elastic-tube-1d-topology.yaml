@@ -8,8 +8,8 @@ configuration:
 
 logging:
   enabled: true
-  filter: 
-    severity: debug
+  sink:
+    filter: "%Severity% > debug"
 
 data:
   - name: Pressure
@@ -52,7 +52,7 @@ participants:
     watch_point:
       name: Middle
       mesh: Fluid-Nodes-Mesh
-      coordinate: [5.0, 0.0]
+      coordinate: [5, 0]
 
   - name: Solid
     provides_mesh: 
@@ -87,3 +87,33 @@ coupling_scheme:
   participants:
     - first: Fluid
     - second: Solid
+  data_exchange:
+    - data: Pressure
+      mesh: Fluid-Nodes-Mesh
+      from: Fluid
+      to: Solid
+    - data: CrossSectionLength
+      mesh: Solid-Nodes-Mesh
+      from: Solid
+      to: Fluid
+      initialize: true
+  convergence_measures:
+    - data: Pressure
+      mesh: Fluid-Nodes-Mesh
+      type: relative
+      limit: 1e-5
+    - data: CrossSectionLength
+      mesh: Solid-Nodes-Mesh
+      type: relative
+      limit: 1e-5
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: CrossSectionLength
+        mesh: Solid-Nodes-Mesh
+    initial_relaxation: 0.01
+    max_used_iterations: 50
+    time_windows_reused: 8
+    filter:
+      type: QR2
+      limit: 1e-3

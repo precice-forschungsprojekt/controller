@@ -8,10 +8,9 @@ configuration:
 
 logging:
   enabled: true
-  filter: 
-    severity: debug
-    rank: 0
-  format: "---[precice] %ColorizedSeverity% %Message%"
+  sink:
+    filter: "%Severity% > debug and %Rank% = 0"
+    format: "---[precice] %ColorizedSeverity% %Message%"
 
 data:
   - name: Temperature
@@ -82,6 +81,41 @@ communication:
 coupling_scheme:
   type: serial-implicit
   max_time: 1.0
+  time_window_size: 0.1
+  max_iterations: 100
   participants:
     - first: Dirichlet
     - second: Neumann
+  data_exchange:
+    - data: Heat-Flux
+      mesh: Dirichlet-Mesh
+      from: Dirichlet
+      to: Neumann
+      initialize: true
+      substeps: true
+    - data: Temperature
+      mesh: Neumann-Mesh
+      from: Neumann
+      to: Dirichlet
+      initialize: true
+      substeps: true
+  convergence_measures:
+    - data: Heat-Flux
+      mesh: Dirichlet-Mesh
+      type: relative
+      limit: 1e-10
+    - data: Temperature
+      mesh: Neumann-Mesh
+      type: relative
+      limit: 1e-10
+  acceleration:
+    type: constant
+    relaxation: 0.5
+    # Commented out IQN-ILS configuration
+    # type: IQN-ILS
+    # initial_relaxation: 0.1
+    # max_used_iterations: 10
+    # time_windows_reused: 5
+    # filter:
+    #   type: QR2
+    #   limit: 1e-3

@@ -51,13 +51,15 @@ participants:
         from_mesh: Fluid-Mesh
         to_mesh: Solid-Mesh
         constraint: conservative
-        basis_function: thin-plate-splines
+        basis_function: 
+          type: thin-plate-splines
       - type: rbf-global-direct
         direction: read
         from_mesh: Solid-Mesh
         to_mesh: Fluid-Mesh
         constraint: consistent
-        basis_function: thin-plate-splines
+        basis_function: 
+          type: thin-plate-splines
 
   - name: Solid
     provides_mesh: 
@@ -74,3 +76,45 @@ communication:
   acceptor: Fluid
   connector: Solid
   exchange_directory: ..
+
+coupling_scheme:
+  type: parallel-implicit
+  time_window_size: 2e-3
+  max_time: 1
+  max_iterations: 30
+  participants:
+    - first: Fluid
+    - second: Solid
+  data_exchange:
+    - data: Force
+      mesh: Solid-Mesh
+      from: Fluid
+      to: Solid
+    - data: Displacement
+      mesh: Solid-Mesh
+      from: Solid
+      to: Fluid
+  convergence_measures:
+    - data: Displacement
+      mesh: Solid-Mesh
+      type: relative
+      limit: 1e-3
+    - data: Force
+      mesh: Solid-Mesh
+      type: relative
+      limit: 1e-3
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: Displacement
+        mesh: Solid-Mesh
+      - name: Force
+        mesh: Solid-Mesh
+    preconditioner:
+      type: residual-sum
+    filter:
+      type: QR2
+      limit: 1e-1
+    initial_relaxation: 0.1
+    max_used_iterations: 100
+    time_windows_reused: 10

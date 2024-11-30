@@ -13,6 +13,12 @@ logging:
     rank: 0
   format: "---[precice] %ColorizedSeverity% %Message%"
 
+profiling:
+  flush_every: 50
+  directory: .
+  mode: all
+  synchronize: true
+
 data:
   - name: Data
     type: scalar
@@ -40,17 +46,40 @@ participants:
     receives_mesh:
       - name: A-Mesh
         from: A
-    provides_mesh:
+    provides_mesh: 
       - B-Mesh
     reads_data:
       - name: Data
         mesh: B-Mesh
     mapping:
-      type: nearest-neighbor
-      constraint: consistent
-      direction: read
-      from_mesh: A-Mesh
-      to_mesh: B-Mesh
+      - type: nearest-neighbor
+        constraint: consistent
+        direction: read
+        from_mesh: A-Mesh
+        to_mesh: B-Mesh
+    # Commented out alternative mapping strategies for reference
+    # Alternative Mapping Strategies:
+    # - type: nearest-projection
+    #   constraint: consistent
+    #   direction: read
+    #   from_mesh: A-Mesh
+    #   to_mesh: B-Mesh
+    # - type: rbf-pum-direct
+    #   constraint: consistent
+    #   direction: read
+    #   from_mesh: A-Mesh
+    #   to_mesh: B-Mesh
+    #   basis_function:
+    #     type: compact-polynomial-c6
+    #     support_radius: 0.1
+    # - type: rbf-global-direct
+    #   constraint: consistent
+    #   direction: read
+    #   from_mesh: A-Mesh
+    #   to_mesh: B-Mesh
+    #   basis_function:
+    #     type: compact-polynomial-c6
+    #     support_radius: 0.1
 
 communication:
   type: sockets
@@ -60,11 +89,11 @@ communication:
 
 coupling_scheme:
   type: parallel-explicit
-  participants: 
+  max_time: 1.0
+  time_window_size: 1
+  participants:
     - first: A
     - second: B
-  max_time: 1.0
-  time_window_size: 1.0
   data_exchange:
     - data: Data
       mesh: A-Mesh

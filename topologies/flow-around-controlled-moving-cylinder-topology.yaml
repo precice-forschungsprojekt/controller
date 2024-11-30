@@ -74,11 +74,84 @@ participants:
         from_mesh: Mesh-Solid
         to_mesh: Mesh-Fluid
         constraint: consistent
+      - type: nearest-neighbor
+        direction: write
+        from_mesh: Mesh-Fluid
+        to_mesh: Mesh-Solid
+        constraint: conservative
+    writes_data:
+      - name: Force
+        mesh: Mesh-Fluid
+    reads_data:
+      - name: Displacement-Cylinder
+        mesh: Mesh-Fluid
 
   - name: Solid
-    # Note: Partial configuration due to truncated XML
-    # Add more details if full configuration is available
+    provides_mesh: 
+      - Mesh-Solid
+    receives_mesh:
+      - name: Mesh-Controller
+        from: Controller
+    writes_data:
+      - name: Displacement-Cylinder
+        mesh: Mesh-Solid
+    reads_data:
+      - name: Force
+        mesh: Mesh-Solid
+      - name: Displacement-Spring
+        mesh: Mesh-Solid
+    watch_point:
+      name: Spring
+      mesh: Mesh-Solid
+      coordinate: [0.0, 0.0]
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Mesh-Controller
+        to_mesh: Mesh-Solid
+        constraint: consistent
 
 communication:
-  type: sockets
-  # Note: Specific communication details may need to be added
+  - type: sockets
+    acceptor: Controller
+    connector: Solid
+    exchange_directory: ../
+  - type: sockets
+    acceptor: Fluid
+    connector: Solid
+    exchange_directory: ../
+
+coupling_schemes:
+  - type: serial-explicit
+    max_time: 3
+    time_window_size: 0.00025
+    participants:
+      - first: Fluid
+      - second: Solid
+    data_exchange:
+      - data: Force
+        mesh: Mesh-Solid
+        from: Fluid
+        to: Solid
+      - data: Displacement-Cylinder
+        mesh: Mesh-Solid
+        from: Solid
+        to: Fluid
+        initialize: true
+
+  - type: serial-explicit
+    max_time: 3
+    time_window_size: 0.00025
+    participants:
+      - first: Solid
+      - second: Controller
+    data_exchange:
+      - data: Displacement-Spring
+        mesh: Mesh-Controller
+        from: Controller
+        to: Solid
+        initialize: true
+      - data: Displacement-Cylinder
+        mesh: Mesh-Solid
+        from: Solid
+        to: Controller

@@ -44,8 +44,8 @@ participants:
         from_mesh: Fluid-Mesh
         to_mesh: Transport-Mesh
         constraint: consistent
-        basis_function: 
-          name: compact-tps-c2
+        basis_function:
+          type: compact-tps-c2
           support_radius: 0.4
 
   - name: Transport

@@ -51,13 +51,15 @@ participants:
         from_mesh: Solid-Mesh
         to_mesh: Fluid-Mesh
         constraint: consistent
-        basis_function: thin-plate-splines
+        basis_function: 
+          type: thin-plate-splines
       - type: rbf
         direction: write
         from_mesh: Fluid-Mesh
         to_mesh: Solid-Mesh
         constraint: conservative
-        basis_function: thin-plate-splines
+        basis_function: 
+          type: thin-plate-splines
 
   - name: Solid
     provides_mesh: 

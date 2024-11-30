@@ -9,10 +9,10 @@ configuration:
 
 logging:
   enabled: true
-  type: stream
-  output: stdout
-  filter: 
-    severity: debug
+  sink:
+    type: stream
+    output: stdout
+    filter: "%Severity% > debug"
 
 data:
   - name: k_00
@@ -96,5 +96,84 @@ participants:
         mesh: macro-mesh
       - name: active_state
         mesh: macro-mesh
+      - name: active_steps
+        mesh: macro-mesh
+    export:
+      type: vtu
+      directory: precice-exports
 
-# Note: Coupling scheme details not fully specified in the original XML
+communication:
+  type: sockets
+  acceptor: Micro-Manager
+  connector: macro-heat
+  network: lo
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  max_time: 0.02
+  time_window_size: 1.0e-2
+  max_iterations: 30
+  participants:
+    - first: macro-heat
+    - second: Micro-Manager
+  data_exchange:
+    - data: k_00
+      mesh: macro-mesh
+      from: Micro-Manager
+      to: macro-heat
+    - data: k_01
+      mesh: macro-mesh
+      from: Micro-Manager
+      to: macro-heat
+    - data: k_10
+      mesh: macro-mesh
+      from: Micro-Manager
+      to: macro-heat
+    - data: k_11
+      mesh: macro-mesh
+      from: Micro-Manager
+      to: macro-heat
+    - data: porosity
+      mesh: macro-mesh
+      from: Micro-Manager
+      to: macro-heat
+    - data: concentration
+      mesh: macro-mesh
+      from: macro-heat
+      to: Micro-Manager
+      initialize: true
+  convergence_measures:
+    - data: k_00
+      mesh: macro-mesh
+      type: relative
+      limit: 1e-3
+    - data: k_11
+      mesh: macro-mesh
+      type: relative
+      limit: 1e-3
+    - data: porosity
+      mesh: macro-mesh
+      type: relative
+      limit: 1e-3
+    - data: concentration
+      mesh: macro-mesh
+      type: relative
+      limit: 1e-3
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: k_00
+        mesh: macro-mesh
+      - name: k_11
+        mesh: macro-mesh
+      - name: porosity
+        mesh: macro-mesh
+    preconditioner:
+      type: residual-sum
+    initial_relaxation: 0.9
+    max_used_iterations: 40
+    time_windows_reused: 20
+    filter:
+      type: QR2
+      limit: 1e-2

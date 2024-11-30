@@ -87,7 +87,40 @@ participants:
 
 communication:
   type: sockets
-  # Note: Communication details not fully specified in the truncated XML
+  acceptor: Fluid
+  connector: Solid
+  exchange_directory: ..
 
 coupling_scheme:
-  # Note: Coupling scheme details not specified in the truncated XML
+  type: serial-implicit
+  time_window_size: 0.01
+  max_time: 1.0
+  max_iterations: 200
+  participants:
+    - first: Fluid
+    - second: Solid
+  data_exchange:
+    - data: Temperature
+      mesh: Fluid-Mesh-Nodes
+      from: Fluid
+      to: Solid
+    - data: Heat-Flux
+      mesh: Solid-Mesh-Nodes
+      from: Solid
+      to: Fluid
+  convergence_measures:
+    - data: Temperature
+      mesh: Fluid-Mesh-Nodes
+      type: relative
+      limit: 1.0e-6
+  acceleration:
+    type: IQN-ILS
+    data:
+      - mesh: Solid-Mesh-Nodes
+        name: Heat-Flux
+    initial_relaxation: 0.01
+    max_used_iterations: 80
+    time_windows_reused: 10
+    filter:
+      type: QR1
+      limit: 1e-8

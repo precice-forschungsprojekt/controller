@@ -8,17 +8,16 @@ configuration:
 
 logging:
   enabled: true
-  filter: 
-    severity: debug
-    rank: 0
-  format: "---[precice] %ColorizedSeverity% %Message%"
+  sink:
+    filter: "%Severity% > debug and %Rank% = 0"
+    format: "---[precice] %ColorizedSeverity% %Message%"
 
 data:
   - name: Pressure
     type: scalar
   - name: Velocity
     type: vector
-  # Commented out in original config
+  # Commented out unused data
   # - name: PressureGradient
   #   type: scalar
 
@@ -82,7 +81,48 @@ participants:
 
 communication:
   type: sockets
-  # Communication details not fully specified in the truncated XML
+  acceptor: Fluid1
+  connector: Fluid2
+  exchange_directory: ..
 
 coupling_scheme:
-  # Coupling scheme details not specified in the truncated XML
+  type: serial-implicit
+  time_window_size: 0.01
+  max_time: 1.0
+  max_iterations: 100
+  participants:
+    - first: Fluid1
+    - second: Fluid2
+  data_exchange:
+    - data: Velocity
+      mesh: Fluid1-Mesh
+      from: Fluid1
+      to: Fluid2
+    # - data: PressureGradient
+    #   mesh: Fluid1-Mesh
+    #   from: Fluid1
+    #   to: Fluid2
+    - data: Pressure
+      mesh: Fluid2-Mesh
+      from: Fluid2
+      to: Fluid1
+  convergence_measures:
+    - data: Pressure
+      mesh: Fluid2-Mesh
+      type: relative
+      limit: 1.0e-6
+    - data: Velocity
+      mesh: Fluid1-Mesh
+      type: relative
+      limit: 1.0e-6
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: Pressure
+        mesh: Fluid2-Mesh
+    initial_relaxation: 0.01
+    max_used_iterations: 80
+    time_windows_reused: 10
+    filter:
+      type: QR1
+      limit: 1e-8

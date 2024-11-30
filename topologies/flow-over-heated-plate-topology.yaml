@@ -53,23 +53,23 @@ participants:
         constraint: consistent
 
   - name: Solid
+    provides_mesh: 
+      - Solid-Mesh
     receives_mesh:
       - name: Fluid-Mesh
         from: Fluid
-    provides_mesh: 
-      - Solid-Mesh
-    mapping:
-      - type: nearest-neighbor
-        direction: read
-        from_mesh: Fluid-Mesh
-        to_mesh: Solid-Mesh
-        constraint: consistent
     reads_data:
       - name: Temperature
         mesh: Solid-Mesh
     writes_data:
       - name: Heat-Flux
         mesh: Solid-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Fluid-Mesh
+        to_mesh: Solid-Mesh
+        constraint: consistent
     export:
       type: vtk
       directory: precice-exports
@@ -83,4 +83,28 @@ communication:
 coupling_scheme:
   type: serial-implicit
   time_window_size: 0.01
-  # Note: Remaining coupling scheme details truncated in original XML
+  max_time: 1
+  max_iterations: 30
+  participants:
+    - first: Fluid
+    - second: Solid
+  data_exchange:
+    - data: Temperature
+      mesh: Fluid-Mesh
+      from: Fluid
+      to: Solid
+    - data: Heat-Flux
+      mesh: Solid-Mesh
+      from: Solid
+      to: Fluid
+  convergence_measures:
+    - data: Temperature
+      mesh: Fluid-Mesh
+      type: relative
+      limit: 1.0e-5
+  acceleration:
+    type: aitken
+    data:
+      - name: Heat-Flux
+        mesh: Solid-Mesh
+    initial_relaxation: 0.5

@@ -44,11 +44,11 @@ participants:
         mesh: Mass-Left-Mesh
 
   - name: Mass-Right
+    provides_mesh: 
+      - Mass-Right-Mesh
     receives_mesh:
       - name: Mass-Left-Mesh
         from: Mass-Left
-    provides_mesh: 
-      - Mass-Right-Mesh
     writes_data:
       - name: Force-Right
         mesh: Mass-Right-Mesh
@@ -90,3 +90,16 @@ coupling_scheme:
       mesh: Mass-Left-Mesh
       type: relative
       limit: 1e-10
+  data_exchange:
+    - data: Force-Left
+      mesh: Mass-Left-Mesh
+      from: Mass-Left
+      to: Mass-Right
+      initialize: true
+      substeps: true
+    - data: Force-Right
+      mesh: Mass-Left-Mesh
+      from: Mass-Right
+      to: Mass-Left
+      initialize: true
+      substeps: true

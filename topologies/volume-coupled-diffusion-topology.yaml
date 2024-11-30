@@ -101,3 +101,23 @@ coupling_scheme:
       from: Drain
       to: Source
       initialize: true
+  convergence_measures:
+    - data: Source-Data
+      mesh: Source-Mesh
+      type: relative
+      limit: 1e-5
+    - data: Drain-Data
+      mesh: Drain-Mesh
+      type: relative
+      limit: 1e-5
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: Drain-Data
+        mesh: Drain-Mesh
+    initial_relaxation: 0.1
+    max_used_iterations: 10
+    time_windows_reused: 5
+    filter:
+      type: QR2
+      limit: 1e-3
