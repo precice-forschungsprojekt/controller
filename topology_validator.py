@@ -2,41 +2,98 @@ import os
 import re
 import yaml
 import jsonschema
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Optional
 
 class TopologyValidator:
     def __init__(self, topology_dir: str):
         """
-        Initialize the topology validator with the directory containing topology files
+        Initialize the topology validator with advanced configuration checks
         
-        :param topology_dir: Path to directory containing YAML topology files
+        :param topology_dir: Path to directory containing topology files
         """
         self.topology_dir = topology_dir
         self.topology_schema = self._create_topology_schema()
+        self.best_practices = self._define_best_practices()
+
+    def _define_best_practices(self) -> Dict[str, List[str]]:
+        """
+        Define a comprehensive set of best practices and recommendations
+        
+        :return: Dictionary of best practice guidelines
+        """
+        return {
+            "coupling_scheme": [
+                "Prefer implicit coupling for better convergence",
+                "Use appropriate time window sizes",
+                "Implement convergence measures"
+            ],
+            "communication": [
+                "Minimize communication overhead",
+                "Use efficient communication methods",
+                "Consider network latency"
+            ],
+            "mapping": [
+                "Choose mapping method carefully",
+                "Ensure consistent mesh definitions",
+                "Use conservative or consistent constraints"
+            ],
+            "performance": [
+                "Optimize data exchange",
+                "Minimize unnecessary data transfers",
+                "Use appropriate acceleration techniques"
+            ]
+        }
 
     def _create_topology_schema(self) -> Dict[str, Any]:
         """
-        Create a highly flexible JSON schema for validating topology files
+        Create an advanced, flexible JSON schema for topology validation
         
-        :return: JSON schema dictionary
+        :return: Comprehensive JSON schema dictionary
         """
-        base_schema = {
+        return {
+            "$schema": "http://json-schema.org/draft-07/schema#",
             "type": "object",
             "properties": {
-                "version": {"type": ["number", "string"], "minimum": 1.0},
+                "version": {
+                    "type": ["number", "string"],
+                    "minimum": 1.0,
+                    "description": "preCICE configuration version"
+                },
                 "configuration": {
                     "type": "object",
                     "properties": {
-                        "type": {"type": "string"},
-                        "dimensions": {"type": ["number", "string"], "enum": [1, 2, 3, "1", "2", "3"]},
-                        "experimental": {"type": "boolean"}
-                    }
+                        "type": {
+                            "type": "string", 
+                            "enum": ["precice", "custom"],
+                            "description": "Configuration type"
+                        },
+                        "dimensions": {
+                            "type": ["number", "string"], 
+                            "enum": [1, 2, 3, "1", "2", "3"],
+                            "description": "Spatial dimensions of the simulation"
+                        },
+                        "experimental": {
+                            "type": "boolean",
+                            "description": "Flag for experimental configurations"
+                        }
+                    },
+                    "additionalProperties": True
                 },
                 "logging": {
                     "type": "object",
                     "properties": {
                         "enabled": {"type": "boolean"},
-                        "sink": {"type": "object"}
+                        "level": {
+                            "type": "string", 
+                            "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+                        },
+                        "sink": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "output": {"type": "string"}
+                            }
+                        }
                     }
                 },
                 "data": {
@@ -45,10 +102,19 @@ class TopologyValidator:
                         "type": "object",
                         "properties": {
                             "name": {"type": "string"},
-                            "type": {"type": "string", "enum": ["scalar", "vector"]},
-                            "waveform_degree": {"type": ["number", "string"]}
-                        }
-                    }
+                            "type": {
+                                "type": "string", 
+                                "enum": ["scalar", "vector", "tensor"]
+                            },
+                            "waveform_degree": {
+                                "type": ["number", "string"],
+                                "minimum": 0,
+                                "maximum": 10
+                            }
+                        },
+                        "required": ["name", "type"]
+                    },
+                    "uniqueItems": True
                 },
                 "meshes": {
                     "type": "array",
@@ -56,10 +122,18 @@ class TopologyValidator:
                         "type": "object",
                         "properties": {
                             "name": {"type": "string"},
-                            "dimensions": {"type": ["number", "string"], "enum": [1, 2, 3, "1", "2", "3"]},
-                            "data": {"type": "array", "items": {"type": "string"}}
-                        }
-                    }
+                            "dimensions": {
+                                "type": ["number", "string"], 
+                                "enum": [1, 2, 3, "1", "2", "3"]
+                            },
+                            "data": {
+                                "type": "array", 
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["name", "dimensions"]
+                    },
+                    "uniqueItems": True
                 },
                 "participants": {
                     "type": "array",
@@ -71,9 +145,29 @@ class TopologyValidator:
                             "receives_mesh": {"type": "array"},
                             "writes_data": {"type": "array"},
                             "reads_data": {"type": "array"},
-                            "mapping": {"type": "array"},
-                            "watch_point": {"type": "object"}
-                        }
+                            "mapping": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "type": {
+                                            "type": "string", 
+                                            "enum": [
+                                                "nearest-neighbor", 
+                                                "nearest-projection", 
+                                                "rbf", 
+                                                "linear"
+                                            ]
+                                        },
+                                        "constraint": {
+                                            "type": "string", 
+                                            "enum": ["consistent", "conservative"]
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "required": ["name"]
                     }
                 },
                 "communication": {
@@ -81,10 +175,11 @@ class TopologyValidator:
                         {
                             "type": "object",
                             "properties": {
-                                "type": {"type": "string"},
-                                "acceptor": {"type": "string"},
-                                "connector": {"type": "string"},
-                                "exchange_directory": {"type": "string"}
+                                "type": {
+                                    "type": "string", 
+                                    "enum": ["sockets", "mpi", "serial"]
+                                },
+                                "network": {"type": "string"}
                             }
                         },
                         {
@@ -92,10 +187,11 @@ class TopologyValidator:
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "type": {"type": "string"},
-                                    "acceptor": {"type": "string"},
-                                    "connector": {"type": "string"},
-                                    "exchange_directory": {"type": "string"}
+                                    "type": {
+                                        "type": "string", 
+                                        "enum": ["sockets", "mpi", "serial"]
+                                    },
+                                    "network": {"type": "string"}
                                 }
                             }
                         }
@@ -116,8 +212,15 @@ class TopologyValidator:
                             ]
                         },
                         "max_time": {"type": ["number", "string"]},
-                        "time_window_size": {"type": ["number", "string"]},
-                        "max_iterations": {"type": ["number", "string"]},
+                        "time_window_size": {
+                            "type": ["number", "string"],
+                            "minimum": 0
+                        },
+                        "max_iterations": {
+                            "type": ["number", "string"],
+                            "minimum": 1,
+                            "maximum": 1000
+                        },
                         "participants": {
                             "type": "array",
                             "items": {
@@ -144,90 +247,15 @@ class TopologyValidator:
                         }
                     }
                 }
-            }
+            },
+            "additionalProperties": True
         }
-        return base_schema
 
-    def _parse_scientific_notation(self, value: Union[str, float, int]) -> float:
-        """
-        Parse scientific notation or numeric values safely
-        
-        :param value: Input value to parse
-        :return: Parsed float value
-        """
-        if isinstance(value, (int, float)):
-            return float(value)
-        
-        try:
-            # Use regex to handle scientific notation
-            return float(value)
-        except ValueError:
-            raise ValueError(f"Cannot parse numeric value: {value}")
-
-    def validate_topology(self, topology_file: str) -> List[str]:
-        """
-        Validate a single topology file with enhanced error handling
-        
-        :param topology_file: Path to the topology YAML file
-        :return: List of validation errors, empty list if valid
-        """
-        errors = []
-        
-        try:
-            with open(topology_file, 'r') as f:
-                topology_data = yaml.safe_load(f)
-            
-            # Preprocess numeric values
-            self._preprocess_numeric_values(topology_data)
-            
-            # Validate against schema
-            try:
-                jsonschema.validate(instance=topology_data, schema=self.topology_schema)
-            except jsonschema.exceptions.ValidationError as ve:
-                errors.append(self._format_validation_error(ve, topology_file))
-            
-            # Additional custom validations
-            errors.extend(self._validate_data_consistency(topology_data))
-            errors.extend(self._validate_mesh_data_references(topology_data))
-            
-        except yaml.YAMLError as e:
-            errors.append(f"YAML Parsing Error in {topology_file}: {e}")
-        except FileNotFoundError:
-            errors.append(f"File not found: {topology_file}")
-        except Exception as e:
-            errors.append(f"Unexpected error in {topology_file}: {e}")
-        
-        return errors
-
-    def _preprocess_numeric_values(self, data: Dict[str, Any]):
-        """
-        Preprocess and convert string numeric values to floats
-        
-        :param data: Topology data dictionary
-        """
-        # Handle configuration dimensions
-        if 'configuration' in data and 'dimensions' in data['configuration']:
-            try:
-                data['configuration']['dimensions'] = int(data['configuration']['dimensions'])
-            except ValueError:
-                pass
-
-        # Handle coupling scheme numeric values
-        if 'coupling_scheme' in data:
-            cs = data['coupling_scheme']
-            for key in ['max_time', 'time_window_size', 'max_iterations']:
-                if key in cs:
-                    try:
-                        cs[key] = self._parse_scientific_notation(cs[key])
-                    except ValueError:
-                        pass
-
-    def _format_validation_error(self, validation_error: jsonschema.exceptions.ValidationError, filename: str) -> str:
+    def _format_validation_error(self, validation_error: jsonschema.exceptions.ValidationError) -> str:
         """
         Format validation errors with more context and suggestions
         
         :param validation_error: Validation error from jsonschema
-        :param filename: Name of the file being validated
         :return: Formatted error message
         """
         error_path = ' -> '.join(str(path) for path in validation_error.path)
@@ -242,7 +270,7 @@ class TopologyValidator:
         
         suggestion = suggestions.get(error_path, "No specific suggestion available")
         
-        return (f"Validation Warning in {filename} at {error_path}: {error_message}\n"
+        return (f"Validation Error at {error_path}: {error_message}\n"
                 f"  Suggestion: {suggestion}")
 
     def _validate_data_consistency(self, topology_data: Dict[str, Any]) -> List[str]:
@@ -250,7 +278,7 @@ class TopologyValidator:
         Perform additional data consistency checks
         
         :param topology_data: Parsed topology data
-        :return: List of validation errors
+        :return: List of validation warnings
         """
         warnings = []
         
@@ -273,7 +301,7 @@ class TopologyValidator:
         Validate that data references in meshes and participants are valid
         
         :param topology_data: Parsed topology data
-        :return: List of validation errors
+        :return: List of validation warnings
         """
         warnings = []
         
@@ -300,38 +328,168 @@ class TopologyValidator:
         
         return warnings
 
-    def validate_all_topologies(self) -> Dict[str, List[str]]:
+    def validate_topology(self, topology_file: str) -> Dict[str, Any]:
         """
-        Validate all topology files in the specified directory
+        Advanced topology validation with comprehensive checks
         
-        :return: Dictionary of topology files and their validation warnings
+        :param topology_file: Path to the topology YAML file
+        :return: Validation report with errors, warnings, and recommendations
         """
-        validation_results = {}
+        validation_report = {
+            "file": topology_file,
+            "errors": [],
+            "warnings": [],
+            "recommendations": [],
+            "best_practices": []
+        }
+        
+        try:
+            with open(topology_file, 'r') as f:
+                topology_data = yaml.safe_load(f)
+            
+            # Preprocess and validate
+            self._preprocess_data(topology_data)
+            
+            # JSON Schema Validation
+            try:
+                jsonschema.validate(instance=topology_data, schema=self.topology_schema)
+            except jsonschema.exceptions.ValidationError as ve:
+                validation_report["errors"].append(self._format_validation_error(ve))
+            
+            # Additional custom validations
+            validation_report["warnings"].extend(self._validate_data_consistency(topology_data))
+            validation_report["warnings"].extend(self._validate_mesh_data_references(topology_data))
+            
+            # Performance and best practices recommendations
+            validation_report["recommendations"].extend(
+                self._generate_recommendations(topology_data)
+            )
+            
+            # Best practices guidance
+            validation_report["best_practices"] = self._check_best_practices(topology_data)
+            
+        except yaml.YAMLError as e:
+            validation_report["errors"].append(f"YAML Parsing Error: {e}")
+        except FileNotFoundError:
+            validation_report["errors"].append(f"File not found: {topology_file}")
+        except Exception as e:
+            validation_report["errors"].append(f"Unexpected error: {e}")
+        
+        return validation_report
+
+    def _preprocess_data(self, data: Dict[str, Any]):
+        """
+        Advanced data preprocessing and normalization
+        
+        :param data: Topology data dictionary
+        """
+        # Normalize numeric values
+        numeric_keys = [
+            ('configuration', 'dimensions'),
+            ('coupling_scheme', 'max_time'),
+            ('coupling_scheme', 'time_window_size'),
+            ('coupling_scheme', 'max_iterations')
+        ]
+        
+        for section, key in numeric_keys:
+            if section in data and key in data[section]:
+                try:
+                    data[section][key] = float(data[section][key])
+                except (ValueError, TypeError):
+                    pass
+
+    def _generate_recommendations(self, topology_data: Dict[str, Any]) -> List[str]:
+        """
+        Generate performance and configuration recommendations
+        
+        :param topology_data: Parsed topology data
+        :return: List of recommendations
+        """
+        recommendations = []
+        
+        # Coupling scheme recommendations
+        if 'coupling_scheme' in topology_data:
+            cs = topology_data['coupling_scheme']
+            if cs.get('type', '').endswith('explicit'):
+                recommendations.append(
+                    "Consider using implicit coupling for better convergence stability"
+                )
+        
+        # Communication recommendations
+        if 'communication' in topology_data:
+            comm = topology_data['communication']
+            if isinstance(comm, list) and len(comm) > 1:
+                recommendations.append(
+                    "Multiple communication configurations detected. Verify network efficiency."
+                )
+        
+        return recommendations
+
+    def _check_best_practices(self, topology_data: Dict[str, Any]) -> List[str]:
+        """
+        Check configuration against predefined best practices
+        
+        :param topology_data: Parsed topology data
+        :return: List of best practice recommendations
+        """
+        best_practices_found = []
+        
+        # Coupling scheme best practices
+        if 'coupling_scheme' in topology_data:
+            cs = topology_data['coupling_scheme']
+            if cs.get('type', '').endswith('implicit'):
+                best_practices_found.extend(
+                    self.best_practices.get('coupling_scheme', [])
+                )
+        
+        return best_practices_found
+
+    def validate_all_topologies(self) -> List[Dict[str, Any]]:
+        """
+        Validate all topology files with comprehensive reporting
+        
+        :return: List of validation reports
+        """
+        validation_reports = []
         
         for filename in os.listdir(self.topology_dir):
             if filename.endswith('-topology.yaml'):
                 filepath = os.path.join(self.topology_dir, filename)
-                errors = self.validate_topology(filepath)
-                if errors:
-                    validation_results[filename] = errors
+                report = self.validate_topology(filepath)
+                validation_reports.append(report)
         
-        return validation_results
+        return validation_reports
 
 def main():
     topology_dir = r'c:/Users/thore/Desktop/precice/Forschungsprojekt/controller/topologies'
     validator = TopologyValidator(topology_dir)
     
     # Validate all topologies
-    validation_results = validator.validate_all_topologies()
+    validation_reports = validator.validate_all_topologies()
     
-    if validation_results:
-        print("Validation Warnings Found:")
-        for filename, errors in validation_results.items():
-            print(f"\n{filename}:")
-            for error in errors:
-                print(f"  - {error}")
-    else:
-        print("All topology files are valid!")
+    # Display comprehensive validation results
+    for report in validation_reports:
+        print(f"\nValidation Report for {report['file']}:")
+        
+        if report['errors']:
+            print("  Errors:")
+            for error in report['errors']:
+                print(f"    - {error}")
+        
+        if report['warnings']:
+            print("  Warnings:")
+            for warning in report['warnings']:
+                print(f"    - {warning}")
+        
+        if report['recommendations']:
+            print("  Recommendations:")
+            for rec in report['recommendations']:
+                print(f"    - {rec}")
+        
+        if report['best_practices']:
+            print("  Best Practices:")
+            for bp in report['best_practices']:
+                print(f"    - {bp}")
 
 if __name__ == "__main__":
     main()
