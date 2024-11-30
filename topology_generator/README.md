@@ -104,98 +104,93 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🌐 preCICE Topology Configuration Generator
 
-## 🚀 Quick Start
+## 🚀 Overview
 
-### Installation
+The Topology Configuration Generator is an advanced Python tool for automating the creation of preCICE simulation configurations. It provides a flexible, validation-driven approach to generating complex multiphysics simulation topologies.
+
+## ✨ Key Features
+
+- 🔧 Automated preCICE configuration generation
+- 🛡️ Comprehensive configuration validation
+- 🌈 Flexible YAML-based configuration interface
+- 🔄 XML to Topology conversion
+- 📊 Detailed error reporting
+
+## 📦 Installation
+
+### Prerequisites
+- Python 3.10+
+- pip
+
+### Install from Source
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/precice/topology-generator.git
+cd topology-generator
+pip install -e .
 ```
+
+### Install via pip
+```bash
+pip install topology-generator
+```
+
+## 💻 Usage
 
 ### CLI Usage
-
-#### Basic Generation
 ```bash
-python -m topology_generator.cli topology.yaml
+# Generate configuration from topology YAML
+topology-generator topology.yaml
+
+# Validate configuration
+topology-generator topology.yaml -v
+
+# Custom output directory
+topology-generator topology.yaml -o custom_output
 ```
 
-#### Advanced CLI Options
-```bash
-# Validate topology configuration
-python -m topology_generator.cli topology.yaml -v
-
-# Specify custom output directory
-python -m topology_generator.cli topology.yaml -o custom_output
-
-# Set logging verbosity
-python -m topology_generator.cli topology.yaml -l DEBUG
-
-# Use custom generator configuration
-python -m topology_generator.cli topology.yaml -c generator_config.json
-```
-
-### CLI Configuration Options
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `-c, --config` | Custom generator configuration | `topology.yaml -c config.json` |
-| `-o, --output` | Custom output directory | `topology.yaml -o simulation_output` |
-| `-l, --log-level` | Set logging verbosity | `topology.yaml -l DEBUG` |
-| `-v, --validate` | Validate configuration only | `topology.yaml -v` |
-| `-n, --dry-run` | Simulate generation | `topology.yaml -n` |
-
-## 🔧 Configuration File Examples
-
-### JSON Configuration
-```json
-{
-    "log_level": "DEBUG",
-    "xml_pretty_print": true,
-    "overwrite_existing": false,
-    "custom_data_mappings": {
-        "Force": "CustomForce"
-    }
-}
-```
-
-### YAML Configuration
-```yaml
-log_level: INFO
-xml_pretty_print: true
-overwrite_existing: false
-custom_data_mappings:
-    Force: CustomForce
-```
-
-## 💻 Programmatic Usage
-
-### Basic Example
+### Programmatic Usage
 ```python
 from topology_generator import PreciceConfigGenerator
 
+# Generate configuration
 generator = PreciceConfigGenerator('topology.yaml')
 result = generator.generate()
+
+# XML to Topology conversion
+from topology_generator import PreciceXMLToTopologyConverter
+
+converter = PreciceXMLToTopologyConverter('precice-config.xml')
+topology = converter.generate_topology_yaml('topology.yaml')
 ```
 
-### Advanced Configuration
-```python
-config = {
-    'log_level': 'DEBUG',
-    'custom_data_mappings': {
-        'Force': 'CustomForceData'
-    }
-}
-generator = PreciceConfigGenerator(
-    'topology.yaml', 
-    generator_config=config
-)
-result = generator.generate()
+## 🔧 Configuration Options
+
+### Topology YAML Structure
+```yaml
+name: simulation_topology
+data:
+  - name: Force
+    type: vector
+meshes:
+  - name: FluidMesh
+    dimensions: 3
+    data: [Force, Displacement]
+participants:
+  - name: Fluid
+    provides_mesh: FluidMesh
+    read_data: [Displacement]
+    write_data: [Force]
+coupling:
+  type: serial-implicit
+  time_window_size: 0.1
+  max_time: 10.0
 ```
 
 ## 🛠️ Development
 
 ### Running Tests
 ```bash
-pytest tests/
+pytest
 ```
 
 ### Code Formatting
@@ -204,7 +199,7 @@ black .
 flake8
 ```
 
-## 📝 Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -215,3 +210,8 @@ flake8
 ## 📄 License
 
 MIT License
+
+## 📞 Contact
+
+- Maintainer: [Your Name]
+- Project Link: [GitHub Repository]

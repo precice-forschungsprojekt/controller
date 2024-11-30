@@ -1,0 +1,37 @@
+[tool.pytest.ini_options]
+addopts = """
+    -v 
+    --cov=topology_generator 
+    --cov-report=term-missing 
+    --cov-report=html:coverage_report
+"""
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+source = ["topology_generator"]
+omit = [
+    "*/__init__.py",
+    "*/cli.py",
+    "*/tests/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:"
+]
+fail_under = 80.0
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
