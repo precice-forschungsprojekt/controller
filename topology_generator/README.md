@@ -104,79 +104,106 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🌐 preCICE Topology Configuration Generator
 
-## 🚀 Overview
+## 🚀 Advanced Configuration Management
 
-The Topology Configuration Generator is an advanced tool for automating the creation of preCICE simulation configurations. It provides a flexible, user-friendly YAML-based interface for defining complex multiphysics simulation topologies.
+### 🔧 Flexible Generation Options
 
-## ✨ Key Features
+The Topology Configuration Generator now supports advanced configuration through `TopologyGeneratorConfig`:
 
-### 🔍 Comprehensive Validation
-- **Robust Configuration Checking**
-  - Unique participant name validation
-  - Consistent data exchange verification
-  - Mesh and data existence checks
-  - Coupling participant validation
+```python
+config = {
+    'log_level': 'DEBUG',
+    'xml_pretty_print': True,
+    'overwrite_existing': False,
+    'backup_existing': True,
+    'custom_data_mappings': {
+        'Force': 'CustomForce',
+        'Displacement': 'CustomDisplacement'
+    }
+}
 
-### 🧩 Flexible Configuration
-- Support for multiple enum representations
-- Intelligent type conversion
+generator = PreciceConfigGenerator(
+    topology_file, 
+    generator_config=config
+)
+```
+
+### ✨ Key Configuration Features
+
+- **Logging Control**
+  - Configurable log levels
+  - Logging to console and file
+  - Detailed runtime information
+
+- **File Generation Options**
+  - Overwrite protection
+  - Automatic backup of existing configurations
+  - Custom output directory support
+
+- **Advanced Mapping**
+  - Custom data name mappings
+  - Mesh transformation rules
+  - Flexible enum handling
+
+### 🛡️ Validation Enhancements
+
+- Comprehensive topology configuration checks
+- Strict and flexible validation modes
 - Detailed error reporting
+- Custom mapping and transformation support
 
-### 🛡️ Advanced Validation Mechanisms
-- Pydantic-based schema validation
-- Custom topology configuration checks
-- Comprehensive error messages
+## 📦 Configuration Options
 
-## 🔧 Configuration Validation Checks
+### Logging Configuration
+- `log_level`: Set logging verbosity
+  - `'DEBUG'`: Most detailed
+  - `'INFO'`: Standard logging
+  - `'WARNING'`: Only warnings and errors
+  - `'ERROR'`: Critical errors only
 
-The generator performs the following comprehensive checks:
+### File Generation
+- `overwrite_existing`: Control file overwriting
+- `backup_existing`: Create backups of existing files
+- `xml_pretty_print`: Format XML with indentation
 
-1. **Participant Validation**
-   - Ensure unique participant names
-   - Verify provided and received meshes exist
-   - Check read/write data consistency
-
-2. **Topology Constraints**
-   - Minimum two participants required for coupling
-   - Validate coupling participant definitions
-   - Check data and mesh references
-
-3. **Simulation Parameters**
-   - Positive time window size
-   - Valid maximum simulation time
-
-## 📦 Enum Support
-
-Supports flexible enum representations:
-- Integer-based enum values
-- String-based enum values
-- Automatic conversion and validation
+### Custom Mappings
+- `custom_data_mappings`: Rename data fields
+- `custom_mesh_transformations`: Modify mesh configurations
 
 ## 💻 Usage Example
 
-```yaml
-name: fluid-solid-interaction
-participants:
-  - name: Fluid
-    provides_mesh: Fluid-Mesh
-    mapping_type: 0  # RBF Mapping
-  - name: Solid
-    provides_mesh: Solid-Mesh
-    mapping_type: 1  # Nearest Projection
+```python
+from controller.topology_generator import PreciceConfigGenerator
+
+# Basic usage
+generator = PreciceConfigGenerator('topology.yaml')
+generator.generate()
+
+# Advanced configuration
+config = {
+    'log_level': 'DEBUG',
+    'custom_data_mappings': {
+        'Force': 'CustomForceData'
+    }
+}
+generator = PreciceConfigGenerator(
+    'topology.yaml', 
+    generator_config=config
+)
+result = generator.generate()
 ```
 
-## 🛠️ Error Handling
+## 🔍 Generated Artifacts
 
-Detailed error messages with precise location and context:
-```
-Topology configuration validation failed:
-participants -> name: Must be unique
-data -> type: Invalid data type
-```
+The generator creates:
+- `precice-config.xml`: preCICE configuration
+- `run.sh`: Simulation execution script
+- `clean.sh`: Environment cleanup script
+- `README.md`: Simulation documentation
 
 ## 📝 Contributing
 
-Contributions are welcome! Please submit pull requests or open issues to improve the generator.
+Contributions are welcome! Please submit pull requests or open issues.
 
 ## 📄 License
 

@@ -1,52 +1,412 @@
 import os
 import yaml
-from typing import Dict, Any, Optional
+import logging
+from typing import Dict, Any, Optional, List, Union
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 import re
-from pydantic import ValidationError
+import time
 
-from controller.topology_generator.topology_schema import TopologyConfig, MappingType, CouplingSchemeType, DataType
+from pydantic import ValidationError, BaseModel, Field
+
+from controller.topology_generator.topology_schema import (
+    TopologyConfig, 
+    MappingType, 
+    CouplingSchemeType, 
+    DataType
+)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('topology_generator.log', mode='a')
+    ]
+)
+logger = logging.getLogger(__name__)
+
+class TopologyGeneratorConfig(BaseModel):
+    """
+    Advanced configuration for topology generator
+    
+    Allows fine-tuning of generation process and adding custom behaviors
+    """
+    # Logging configuration
+    log_level: str = Field(default='INFO', 
+                           pattern='^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$')
+    
+    # XML generation options
+    xml_pretty_print: bool = True
+    xml_indent: str = '  '
+    
+    # File generation options
+    overwrite_existing: bool = False
+    backup_existing: bool = True
+    
+    # Advanced validation toggles
+    strict_validation: bool = True
+    warn_on_non_critical_issues: bool = True
+    
+    # Custom mapping and transformation rules
+    custom_data_mappings: Dict[str, str] = {}
+    custom_mesh_transformations: Dict[str, Dict[str, Any]] = {}
+    
+    # Simulation environment configuration
+    default_communication_method: str = 'sockets'
+    preferred_coupling_scheme: CouplingSchemeType = CouplingSchemeType.SERIAL_EXPLICIT
 
 class PreciceConfigGenerator:
-    def __init__(self, topology_file: str, output_dir: Optional[str] = None):
+    def __init__(
+        self, 
+        topology_file: str, 
+        output_dir: Optional[str] = None,
+        generator_config: Optional[Union[Dict[str, Any], TopologyGeneratorConfig]] = None
+    ):
         """
-        Initialize the PreciceConfigGenerator
+        Initialize the PreciceConfigGenerator with advanced configuration options
         
         :param topology_file: Path to the topology YAML file
         :param output_dir: Optional output directory for generated files
+        :param generator_config: Optional configuration for generation process
         """
-        # Load topology file
-        with open(topology_file, 'r') as f:
-            topology_data = yaml.safe_load(f)
+        # Set up configuration
+        if isinstance(generator_config, dict):
+            self.generator_config = TopologyGeneratorConfig(**generator_config)
+        elif isinstance(generator_config, TopologyGeneratorConfig):
+            self.generator_config = generator_config
+        else:
+            self.generator_config = TopologyGeneratorConfig()
         
-        # Convert enum values
-        topology_data = self._convert_enums(topology_data)
+        # Configure logging based on generator config
+        logger.setLevel(getattr(logging, self.generator_config.log_level.upper()))
         
-        # Validate topology data against schema
+        logger.info(f"Initializing topology configuration generator for {topology_file}")
+        
         try:
-            self.topology = TopologyConfig(**topology_data)
-        except ValidationError as e:
-            # Enhance Pydantic validation error with more context
-            detailed_errors = []
-            for error in e.errors():
-                loc = ' -> '.join(str(x) for x in error.get('loc', []))
-                detailed_errors.append(f"{loc}: {error.get('msg', 'Validation failed')}")
+            # Load topology file
+            with open(topology_file, 'r') as f:
+                topology_data = yaml.safe_load(f)
             
-            raise ValueError(f"Topology configuration validation failed:\n" + 
-                             "\n".join(detailed_errors)) from e
+            # Apply custom mappings if defined
+            topology_data = self._apply_custom_mappings(topology_data)
+            
+            # Convert enum values
+            topology_data = self._convert_enums(topology_data)
+            
+            # Validate topology data against schema
+            try:
+                self.topology = TopologyConfig(**topology_data)
+            except ValidationError as e:
+                # Enhance Pydantic validation error with more context
+                detailed_errors = []
+                for error in e.errors():
+                    loc = ' -> '.join(str(x) for x in error.get('loc', []))
+                    detailed_errors.append(f"{loc}: {error.get('msg', 'Validation failed')}")
+                
+                logger.error("Topology configuration validation failed")
+                raise ValueError(f"Topology configuration validation failed:\n" + 
+                                 "\n".join(detailed_errors)) from e
+            
+            # Perform additional custom validation
+            self._validate_topology_configuration()
+            
+            # Set output directory
+            self.output_dir = output_dir or os.path.join(
+                os.path.dirname(topology_file), 
+                f"{self.topology.name}-simulation"
+            )
+            
+            # Handle existing directory
+            if os.path.exists(self.output_dir):
+                if not self.generator_config.overwrite_existing:
+                    raise ValueError(f"Output directory {self.output_dir} already exists. "
+                                     "Set overwrite_existing=True to replace.")
+                
+                if self.generator_config.backup_existing:
+                    import shutil
+                    backup_dir = f"{self.output_dir}_backup_{int(time.time())}"
+                    logger.info(f"Backing up existing directory to {backup_dir}")
+                    shutil.move(self.output_dir, backup_dir)
+            
+            # Create output directory
+            os.makedirs(self.output_dir, exist_ok=True)
+            
+            logger.info(f"Topology configuration initialized successfully")
         
-        # Perform additional custom validation
-        self._validate_topology_configuration()
+        except Exception as e:
+            logger.exception("Error during topology configuration initialization")
+            raise
+
+    def _apply_custom_mappings(self, topology_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply custom data and mesh mappings
         
-        # Set output directory
-        self.output_dir = output_dir or os.path.join(
-            os.path.dirname(topology_file), 
-            f"{self.topology.name}-simulation"
-        )
+        :param topology_data: Original topology configuration
+        :return: Modified topology configuration
+        """
+        # Apply custom data mappings
+        if self.generator_config.custom_data_mappings:
+            logger.info("Applying custom data mappings")
+            for data in topology_data.get('data', []):
+                if data['name'] in self.generator_config.custom_data_mappings:
+                    data['name'] = self.generator_config.custom_data_mappings[data['name']]
         
-        # Create output directory if it doesn't exist
-        os.makedirs(self.output_dir, exist_ok=True)
+        # Apply custom mesh transformations
+        if self.generator_config.custom_mesh_transformations:
+            logger.info("Applying custom mesh transformations")
+            for mesh in topology_data.get('meshes', []):
+                if mesh['name'] in self.generator_config.custom_mesh_transformations:
+                    custom_transform = self.generator_config.custom_mesh_transformations[mesh['name']]
+                    mesh.update(custom_transform)
+        
+        return topology_data
+
+    def generate(self):
+        """
+        Generate all configuration files for the simulation
+        
+        Generates:
+        - precice-config.xml
+        - run.sh
+        - clean.sh
+        - README.md
+        """
+        logger.info("Starting simulation configuration generation")
+        
+        # Generate XML configuration
+        precice_config_path = self.generate_precice_config()
+        
+        # Generate run script
+        run_script_path = self._generate_run_script()
+        
+        # Generate clean script
+        clean_script_path = self._generate_clean_script()
+        
+        # Generate README
+        readme_path = self._generate_readme()
+        
+        logger.info("Simulation configuration generation completed")
+        
+        return {
+            'precice_config': precice_config_path,
+            'run_script': run_script_path,
+            'clean_script': clean_script_path,
+            'readme': readme_path
+        }
+
+    def _generate_run_script(self) -> str:
+        """
+        Generate run.sh script for the simulation
+        
+        :return: Path to generated run script
+        """
+        run_script_path = os.path.join(self.output_dir, 'run.sh')
+        
+        # Basic run script template
+        run_script_content = f'''#!/bin/bash
+# Run script for {self.topology.name} simulation
+
+# Participants
+PARTICIPANTS="{' '.join(p.name for p in self.topology.participants)}"
+
+# Run simulation
+for participant in $PARTICIPANTS; do
+    echo "Running participant: $participant"
+    # Add participant-specific run commands here
+done
+
+echo "Simulation completed"
+'''
+        
+        with open(run_script_path, 'w') as f:
+            f.write(run_script_content)
+        
+        # Make script executable
+        os.chmod(run_script_path, 0o755)
+        
+        logger.info(f"Generated run script: {run_script_path}")
+        return run_script_path
+
+    def _generate_clean_script(self) -> str:
+        """
+        Generate clean.sh script to reset simulation environment
+        
+        :return: Path to generated clean script
+        """
+        clean_script_path = os.path.join(self.output_dir, 'clean.sh')
+        
+        clean_script_content = '''#!/bin/bash
+# Clean up simulation artifacts
+
+# Remove output files
+rm -f *.log
+rm -f *.txt
+rm -f *.vtk
+
+# Reset any participant-specific files
+echo "Simulation environment cleaned"
+'''
+        
+        with open(clean_script_path, 'w') as f:
+            f.write(clean_script_content)
+        
+        # Make script executable
+        os.chmod(clean_script_path, 0o755)
+        
+        logger.info(f"Generated clean script: {clean_script_path}")
+        return clean_script_path
+
+    def _generate_readme(self) -> str:
+        """
+        Generate README.md for the simulation
+        
+        :return: Path to generated README
+        """
+        readme_path = os.path.join(self.output_dir, 'README.md')
+        
+        readme_content = f'''# {self.topology.name} Simulation
+
+## Participants
+{chr(10).join(f"- {p.name}" for p in self.topology.participants)}
+
+## Coupling Configuration
+- **Type**: {self.topology.coupling.type}
+- **Time Window Size**: {self.topology.coupling.time_window_size}
+- **Max Time**: {self.topology.coupling.max_time}
+
+## Data Exchanges
+{chr(10).join(f"- {e.get('data')} from {e.get('from')} to {e.get('to')}" for e in self.topology.coupling.exchanges)}
+
+## Running the Simulation
+1. Ensure all dependencies are installed
+2. Run `./run.sh`
+3. Use `./clean.sh` to reset the environment
+
+Generated by preCICE Topology Configuration Generator
+'''
+        
+        with open(readme_path, 'w') as f:
+            f.write(readme_content)
+        
+        logger.info(f"Generated README: {readme_path}")
+        return readme_path
+
+    def generate_precice_config(self) -> str:
+        """
+        Generate preCICE XML configuration
+        
+        :return: Path to generated precice-config.xml
+        """
+        # Create root element with namespace
+        root = ET.Element("precice-configuration", xmlns="http://www.precice.org/namespace/precice-config")
+        
+        # Add logging configuration
+        log = ET.SubElement(root, "log")
+        sink = ET.SubElement(log, "sink", {
+            "filter": "%Severity% > debug and %Rank% = 0",
+            "format": "---[precice] %ColorizedSeverity% %Message%",
+            "enabled": "true"
+        })
+        
+        # Add data configurations
+        for data in self.topology.data:
+            ET.SubElement(root, f"data:{self._get_enum_value(data.type)}", name=data.name)
+        
+        # Add mesh configurations
+        for mesh in self.topology.meshes:
+            mesh_elem = ET.SubElement(root, "mesh", name=mesh.name, dimensions=str(mesh.dimensions))
+            for data_name in mesh.data:
+                ET.SubElement(mesh_elem, "use-data", name=data_name)
+        
+        # Add participant configurations
+        for participant in self.topology.participants:
+            participant_elem = ET.SubElement(root, "participant", name=participant.name)
+            
+            # Provide mesh
+            ET.SubElement(participant_elem, "provide-mesh", name=participant.provides_mesh)
+            
+            # Receive meshes
+            for recv_mesh in participant.receives_meshes:
+                ET.SubElement(participant_elem, "receive-mesh", 
+                              name=recv_mesh, 
+                              _from=next(p.name for p in self.topology.participants if p.provides_mesh == recv_mesh))
+            
+            # Read/Write data
+            for read_data in participant.read_data:
+                ET.SubElement(participant_elem, "read-data", name=read_data, mesh=participant.provides_mesh)
+            
+            for write_data in participant.write_data:
+                ET.SubElement(participant_elem, "write-data", name=write_data, mesh=participant.provides_mesh)
+        
+        # Add communication method (default to sockets)
+        if len(self.topology.participants) > 1:
+            m2n = ET.SubElement(root, "m2n:sockets", 
+                                acceptor=self.topology.participants[0].name, 
+                                connector=self.topology.participants[1].name, 
+                                exchange_directory="..")
+        
+        # Add coupling scheme
+        coupling = ET.SubElement(root, f"coupling-scheme:{self._get_enum_value(self.topology.coupling.type)}")
+        ET.SubElement(coupling, "time-window-size", value=str(self.topology.coupling.time_window_size))
+        ET.SubElement(coupling, "max-time", value=str(self.topology.coupling.max_time))
+        
+        participants = ET.SubElement(coupling, "participants", 
+                                     first=self.topology.participants[0].name, 
+                                     second=self.topology.participants[1].name)
+        
+        # Add exchanges
+        for exchange in self.topology.coupling.exchanges:
+            ET.SubElement(coupling, "exchange", 
+                          data=exchange.get('data', ''), 
+                          mesh=exchange.get('mesh', ''), 
+                          _from=exchange.get('from', ''), 
+                          to=exchange.get('to', ''))
+        
+        # Convert to pretty-printed XML
+        xml_declaration = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        ET.register_namespace('', "http://www.precice.org/namespace/precice-config")
+        xml_str = ET.tostring(root, encoding='unicode', method='xml')
+        
+        # Use manual pretty printing
+        xml_str = re.sub(r'>\s*<', '>\n<', xml_str)
+        xml_str = xml_declaration + xml_str
+        
+        # Write to file
+        config_path = os.path.join(self.output_dir, "precice-config.xml")
+        with open(config_path, 'w') as f:
+            f.write(xml_str)
+        
+        return config_path
+
+    def _get_enum_value(self, enum_value):
+        """
+        Convert enum to its string representation for XML generation
+        
+        :param enum_value: Enum value to convert
+        :return: String representation of the enum
+        """
+        enum_to_xml_map = {
+            # Data Type Mapping
+            DataType.SCALAR: 'scalar',
+            DataType.VECTOR: 'vector',
+            DataType.TENSOR: 'tensor',
+            
+            # Mapping Type Mapping
+            MappingType.RBF: 'rbf',
+            MappingType.NEAREST_PROJECTION: 'nearest-projection',
+            MappingType.CONSISTENT: 'consistent',
+            MappingType.CONSERVATIVE: 'conservative',
+            
+            # Coupling Scheme Mapping
+            CouplingSchemeType.SERIAL_EXPLICIT: 'serial-explicit',
+            CouplingSchemeType.SERIAL_IMPLICIT: 'serial-implicit',
+            CouplingSchemeType.PARALLEL_EXPLICIT: 'parallel-explicit',
+            CouplingSchemeType.PARALLEL_IMPLICIT: 'parallel-implicit'
+        }
+        
+        return enum_to_xml_map.get(enum_value, str(enum_value))
 
     def _convert_enums(self, topology_data):
         """
@@ -178,203 +538,6 @@ class PreciceConfigGenerator:
         
         if self.topology.coupling.max_time <= 0:
             raise ValueError("Maximum simulation time must be positive")
-
-    def _get_enum_value(self, enum_value):
-        """
-        Convert enum to its string representation for XML generation
-        
-        :param enum_value: Enum value to convert
-        :return: String representation of the enum
-        """
-        enum_to_xml_map = {
-            # Data Type Mapping
-            DataType.SCALAR: 'scalar',
-            DataType.VECTOR: 'vector',
-            DataType.TENSOR: 'tensor',
-            
-            # Mapping Type Mapping
-            MappingType.RBF: 'rbf',
-            MappingType.NEAREST_PROJECTION: 'nearest-projection',
-            MappingType.CONSISTENT: 'consistent',
-            MappingType.CONSERVATIVE: 'conservative',
-            
-            # Coupling Scheme Mapping
-            CouplingSchemeType.SERIAL_EXPLICIT: 'serial-explicit',
-            CouplingSchemeType.SERIAL_IMPLICIT: 'serial-implicit',
-            CouplingSchemeType.PARALLEL_EXPLICIT: 'parallel-explicit',
-            CouplingSchemeType.PARALLEL_IMPLICIT: 'parallel-implicit'
-        }
-        
-        return enum_to_xml_map.get(enum_value, str(enum_value))
-
-    def generate_precice_config(self) -> str:
-        """
-        Generate preCICE XML configuration
-        
-        :return: Path to generated precice-config.xml
-        """
-        # Create root element with namespace
-        root = ET.Element("precice-configuration", xmlns="http://www.precice.org/namespace/precice-config")
-        
-        # Add logging configuration
-        log = ET.SubElement(root, "log")
-        sink = ET.SubElement(log, "sink", {
-            "filter": "%Severity% > debug and %Rank% = 0",
-            "format": "---[precice] %ColorizedSeverity% %Message%",
-            "enabled": "true"
-        })
-        
-        # Add data configurations
-        for data in self.topology.data:
-            ET.SubElement(root, f"data:{self._get_enum_value(data.type)}", name=data.name)
-        
-        # Add mesh configurations
-        for mesh in self.topology.meshes:
-            mesh_elem = ET.SubElement(root, "mesh", name=mesh.name, dimensions=str(mesh.dimensions))
-            for data_name in mesh.data:
-                ET.SubElement(mesh_elem, "use-data", name=data_name)
-        
-        # Add participant configurations
-        for participant in self.topology.participants:
-            participant_elem = ET.SubElement(root, "participant", name=participant.name)
-            
-            # Provide mesh
-            ET.SubElement(participant_elem, "provide-mesh", name=participant.provides_mesh)
-            
-            # Receive meshes
-            for recv_mesh in participant.receives_meshes:
-                ET.SubElement(participant_elem, "receive-mesh", 
-                              name=recv_mesh, 
-                              _from=next(p.name for p in self.topology.participants if p.provides_mesh == recv_mesh))
-            
-            # Read/Write data
-            for read_data in participant.read_data:
-                ET.SubElement(participant_elem, "read-data", name=read_data, mesh=participant.provides_mesh)
-            
-            for write_data in participant.write_data:
-                ET.SubElement(participant_elem, "write-data", name=write_data, mesh=participant.provides_mesh)
-        
-        # Add communication method (default to sockets)
-        if len(self.topology.participants) > 1:
-            m2n = ET.SubElement(root, "m2n:sockets", 
-                                acceptor=self.topology.participants[0].name, 
-                                connector=self.topology.participants[1].name, 
-                                exchange_directory="..")
-        
-        # Add coupling scheme
-        coupling = ET.SubElement(root, f"coupling-scheme:{self._get_enum_value(self.topology.coupling.type)}")
-        ET.SubElement(coupling, "time-window-size", value=str(self.topology.coupling.time_window_size))
-        ET.SubElement(coupling, "max-time", value=str(self.topology.coupling.max_time))
-        
-        participants = ET.SubElement(coupling, "participants", 
-                                     first=self.topology.participants[0].name, 
-                                     second=self.topology.participants[1].name)
-        
-        # Add exchanges
-        for exchange in self.topology.coupling.exchanges:
-            ET.SubElement(coupling, "exchange", 
-                          data=exchange.get('data', ''), 
-                          mesh=exchange.get('mesh', ''), 
-                          _from=exchange.get('from', ''), 
-                          to=exchange.get('to', ''))
-        
-        # Convert to pretty-printed XML
-        xml_declaration = '<?xml version="1.0" encoding="UTF-8"?>\n'
-        ET.register_namespace('', "http://www.precice.org/namespace/precice-config")
-        xml_str = ET.tostring(root, encoding='unicode', method='xml')
-        
-        # Use manual pretty printing
-        xml_str = re.sub(r'>\s*<', '>\n<', xml_str)
-        xml_str = xml_declaration + xml_str
-        
-        # Write to file
-        config_path = os.path.join(self.output_dir, "precice-config.xml")
-        with open(config_path, 'w') as f:
-            f.write(xml_str)
-        
-        return config_path
-    
-    def generate_run_script(self) -> str:
-        """
-        Generate run.sh script
-        
-        :return: Path to generated run.sh
-        """
-        run_script = "#!/bin/bash\n\n"
-        run_script += "# Run simulation participants\n"
-        
-        for participant in self.topology.participants:
-            run_script += f"# Run {participant.name} participant\n"
-            run_script += f"./{participant.name}_participant &\n"
-        
-        run_script += "\n# Wait for all participants to complete\nwait\n"
-        
-        run_path = os.path.join(self.output_dir, "run.sh")
-        with open(run_path, 'w') as f:
-            f.write(run_script)
-        
-        # Make executable
-        os.chmod(run_path, 0o755)
-        
-        return run_path
-    
-    def generate_clean_script(self) -> str:
-        """
-        Generate clean.sh script
-        
-        :return: Path to generated clean.sh
-        """
-        clean_script = "#!/bin/bash\n\n"
-        clean_script += "# Clean up simulation outputs and temporary files\n"
-        clean_script += "rm -rf *.log\n"
-        clean_script += "rm -rf precice-*.xml\n"
-        clean_script += "rm -rf *.vtk\n"
-        
-        clean_path = os.path.join(self.output_dir, "clean.sh")
-        with open(clean_path, 'w') as f:
-            f.write(clean_script)
-        
-        # Make executable
-        os.chmod(clean_path, 0o755)
-        
-        return clean_path
-    
-    def generate_readme(self) -> str:
-        """
-        Generate README.md
-        
-        :return: Path to generated README.md
-        """
-        readme_content = f"# {self.topology.name} Simulation\n\n"
-        readme_content += "## Simulation Participants\n"
-        
-        for participant in self.topology.participants:
-            readme_content += f"### {participant.name}\n"
-            readme_content += f"- Provides Mesh: {participant.provides_mesh}\n"
-            readme_content += f"- Read Data: {', '.join(participant.read_data)}\n"
-            readme_content += f"- Write Data: {', '.join(participant.write_data)}\n\n"
-        
-        readme_content += "## Running the Simulation\n"
-        readme_content += "1. Ensure all dependencies are installed\n"
-        readme_content += "2. Run `./run.sh`\n"
-        readme_content += "3. Use `./clean.sh` to remove output files\n"
-        
-        readme_path = os.path.join(self.output_dir, "README.md")
-        with open(readme_path, 'w') as f:
-            f.write(readme_content)
-        
-        return readme_path
-    
-    def generate(self):
-        """
-        Generate all configuration files
-        """
-        print(f"Generating simulation files in {self.output_dir}")
-        self.generate_precice_config()
-        self.generate_run_script()
-        self.generate_clean_script()
-        self.generate_readme()
-        print("Simulation configuration generated successfully!")
 
 def main():
     # Example usage
