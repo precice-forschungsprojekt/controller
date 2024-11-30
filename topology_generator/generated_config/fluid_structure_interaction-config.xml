@@ -1,0 +1,34 @@
+<?xml version="1.0" ?>
+<precice-configuration xmlns="http://www.precice.org/namespace/precice-config">
+  <data:data-configuration xmlns:data="http://www.precice.org/namespace/precice-config/data">
+    <data:vector name="Displacement"/>
+    <data:vector name="Force"/>
+  </data:data-configuration>
+  <mesh name="FluidMesh" dimensions="2">
+    <use-data name="Displacement"/>
+    <use-data name="Force"/>
+  </mesh>
+  <mesh name="StructureMesh" dimensions="2">
+    <use-data name="Displacement"/>
+    <use-data name="Force"/>
+  </mesh>
+  <participant name="Fluid">
+    <provide-mesh name="FluidMesh"/>
+    <receive-mesh name="StructureMesh"/>
+    <read-data name="Displacement"/>
+    <write-data name="Force"/>
+  </participant>
+  <participant name="Structure">
+    <provide-mesh name="StructureMesh"/>
+    <receive-mesh name="FluidMesh"/>
+    <read-data name="Force"/>
+    <write-data name="Displacement"/>
+  </participant>
+  <coupling-scheme:serial-implicit xmlns:coupling-scheme="http://www.precice.org/namespace/precice-config/coupling-scheme">
+    <time-window-size value="0.1"/>
+    <max-time value="10.0"/>
+    <participants first="Fluid" second="Structure"/>
+    <exchange data="Displacement" mesh="FluidMesh" _from="Structure" to="Fluid"/>
+    <exchange data="Force" mesh="FluidMesh" _from="Fluid" to="Structure"/>
+  </coupling-scheme:serial-implicit>
+</precice-configuration>

@@ -1,57 +1,58 @@
-name: fluid-solid-interaction
+name: fluid_structure_interaction
+
+# Data types used in the simulation
 data:
-  - name: Force
-    type: vector
   - name: Displacement
     type: vector
+  - name: Force
+    type: vector
 
+# Mesh configurations
 meshes:
-  - name: Fluid-Mesh
+  - name: FluidMesh
     dimensions: 2
     data: 
-      - Force
       - Displacement
-  - name: Solid-Mesh
+      - Force
+  - name: StructureMesh
     dimensions: 2
     data: 
       - Displacement
       - Force
 
+# Participant configurations
 participants:
   - name: Fluid
-    provides_mesh: Fluid-Mesh
+    provides_mesh: FluidMesh
     receives_meshes: 
-      - Solid-Mesh
+      - StructureMesh
     read_data: 
       - Displacement
     write_data: 
       - Force
-    mapping_type: 0  # RBF
-    mapping_constraint: consistent
-  - name: Solid
-    provides_mesh: Solid-Mesh
+  - name: Structure
+    provides_mesh: StructureMesh
     receives_meshes: 
-      - Fluid-Mesh
+      - FluidMesh
     read_data: 
       - Force
     write_data: 
       - Displacement
-    mapping_type: 0  # RBF
-    mapping_constraint: consistent
 
+# Coupling configuration
 coupling:
-  type: 0  # SERIAL_EXPLICIT
-  time_window_size: 0.025
-  max_time: 2.5
+  type: serial-implicit
+  time_window_size: 0.1
+  max_time: 10.0
   participants: 
     - Fluid
-    - Solid
+    - Structure
   exchanges:
-    - data: Force
-      mesh: Solid-Mesh
-      from: Fluid
-      to: Solid
     - data: Displacement
-      mesh: Solid-Mesh
-      from: Solid
+      mesh: FluidMesh
+      from: Structure
       to: Fluid
+    - data: Force
+      mesh: FluidMesh
+      from: Fluid
+      to: Structure
