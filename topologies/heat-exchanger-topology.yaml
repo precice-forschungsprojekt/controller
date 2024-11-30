@@ -1,0 +1,93 @@
+---
+# preCICE Configuration Topology for Heat Exchanger Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 3
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Heat-Transfer-Coefficient-Solid
+    type: scalar
+  - name: Sink-Temperature-Solid
+    type: scalar
+  - name: Heat-Transfer-Coefficient-Fluid-Inner
+    type: scalar
+  - name: Sink-Temperature-Fluid-Inner
+    type: scalar
+  - name: Heat-Transfer-Coefficient-Fluid-Outer
+    type: scalar
+  - name: Sink-Temperature-Fluid-Outer
+    type: scalar
+
+meshes:
+  - name: Solid-to-Fluid-Inner
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+      - Sink-Temperature-Fluid-Inner
+      - Heat-Transfer-Coefficient-Fluid-Inner
+
+  - name: Solid-to-Fluid-Outer
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+      - Sink-Temperature-Fluid-Outer
+      - Heat-Transfer-Coefficient-Fluid-Outer
+
+  - name: Fluid-Inner-to-Solid
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Fluid-Inner
+      - Heat-Transfer-Coefficient-Fluid-Inner
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+
+  - name: Fluid-Outer-to-Solid
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Fluid-Outer
+      - Heat-Transfer-Coefficient-Fluid-Outer
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+
+participants:
+  - name: Solid
+    provides_mesh: 
+      - Solid-to-Fluid-Inner
+    receives_mesh:
+      - name: Fluid-Inner-to-Solid
+        from: Fluid-Inner
+    writes_data:
+      - name: Sink-Temperature-Solid
+        mesh: Solid-to-Fluid-Inner
+      - name: Heat-Transfer-Coefficient-Solid
+        mesh: Solid-to-Fluid-Inner
+    reads_data:
+      - name: Sink-Temperature-Fluid-Inner
+        mesh: Solid-to-Fluid-Inner
+      - name: Heat-Transfer-Coefficient-Fluid-Inner
+        mesh: Solid-to-Fluid-Inner
+
+  # Note: Partial configuration due to truncated XML
+  # Other participants (Fluid-Inner, Fluid-Outer) details would be added here
+
+communication:
+  # Communication details not fully specified in the truncated XML
+
+coupling_scheme:
+  type: parallel-explicit
+  time_window_size: 1
+  max_time: 500
+  participants:
+    - first: Solid
+    - second: Fluid-Inner

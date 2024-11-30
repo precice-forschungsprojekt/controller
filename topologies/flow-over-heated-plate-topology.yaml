@@ -1,0 +1,86 @@
+---
+# preCICE Configuration Topology for Flow Over Heated Plate Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Temperature
+    type: scalar
+  - name: Heat-Flux
+    type: scalar
+
+meshes:
+  - name: Fluid-Mesh
+    dimensions: 2
+    data: 
+      - Temperature
+      - Heat-Flux
+
+  - name: Solid-Mesh
+    dimensions: 2
+    data: 
+      - Temperature
+      - Heat-Flux
+
+participants:
+  - name: Fluid
+    provides_mesh: 
+      - Fluid-Mesh
+    receives_mesh:
+      - name: Solid-Mesh
+        from: Solid
+    reads_data:
+      - name: Heat-Flux
+        mesh: Fluid-Mesh
+    writes_data:
+      - name: Temperature
+        mesh: Fluid-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Solid-Mesh
+        to_mesh: Fluid-Mesh
+        constraint: consistent
+
+  - name: Solid
+    receives_mesh:
+      - name: Fluid-Mesh
+        from: Fluid
+    provides_mesh: 
+      - Solid-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Fluid-Mesh
+        to_mesh: Solid-Mesh
+        constraint: consistent
+    reads_data:
+      - name: Temperature
+        mesh: Solid-Mesh
+    writes_data:
+      - name: Heat-Flux
+        mesh: Solid-Mesh
+    export:
+      type: vtk
+      directory: precice-exports
+
+communication:
+  type: sockets
+  acceptor: Fluid
+  connector: Solid
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  time_window_size: 0.01
+  # Note: Remaining coupling scheme details truncated in original XML

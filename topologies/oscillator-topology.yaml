@@ -1,0 +1,92 @@
+---
+# preCICE Configuration Topology for Oscillator Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+
+data:
+  - name: Force-Left
+    type: scalar
+    waveform_degree: 3
+  - name: Force-Right
+    type: scalar
+    waveform_degree: 3
+
+meshes:
+  - name: Mass-Left-Mesh
+    dimensions: 2
+    data: 
+      - Force-Left
+      - Force-Right
+
+  - name: Mass-Right-Mesh
+    dimensions: 2
+    data: 
+      - Force-Left
+      - Force-Right
+
+participants:
+  - name: Mass-Left
+    provides_mesh: 
+      - Mass-Left-Mesh
+    writes_data:
+      - name: Force-Left
+        mesh: Mass-Left-Mesh
+    reads_data:
+      - name: Force-Right
+        mesh: Mass-Left-Mesh
+
+  - name: Mass-Right
+    receives_mesh:
+      - name: Mass-Left-Mesh
+        from: Mass-Left
+    provides_mesh: 
+      - Mass-Right-Mesh
+    writes_data:
+      - name: Force-Right
+        mesh: Mass-Right-Mesh
+    reads_data:
+      - name: Force-Left
+        mesh: Mass-Right-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: write
+        from_mesh: Mass-Right-Mesh
+        to_mesh: Mass-Left-Mesh
+        constraint: consistent
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Mass-Left-Mesh
+        to_mesh: Mass-Right-Mesh
+        constraint: consistent
+
+communication:
+  type: sockets
+  acceptor: Mass-Left
+  connector: Mass-Right
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  max_time: 1
+  time_window_size: 0.01
+  max_iterations: 200
+  participants:
+    - first: Mass-Left
+    - second: Mass-Right
+  convergence_measures:
+    - data: Force-Left
+      mesh: Mass-Left-Mesh
+      type: relative
+      limit: 1e-10
+    - data: Force-Right
+      mesh: Mass-Left-Mesh
+      type: relative
+      limit: 1e-10

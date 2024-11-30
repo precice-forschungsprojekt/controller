@@ -1,0 +1,88 @@
+---
+# preCICE Configuration Topology for Partitioned Pipe Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 3
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Pressure
+    type: scalar
+  - name: Velocity
+    type: vector
+  # Commented out in original config
+  # - name: PressureGradient
+  #   type: scalar
+
+meshes:
+  - name: Fluid1-Mesh
+    dimensions: 3
+    data: 
+      - Pressure
+      - Velocity
+      # - PressureGradient
+
+  - name: Fluid2-Mesh
+    dimensions: 3
+    data: 
+      - Pressure
+      - Velocity
+      # - PressureGradient
+
+participants:
+  - name: Fluid1
+    provides_mesh: 
+      - Fluid1-Mesh
+    receives_mesh:
+      - name: Fluid2-Mesh
+        from: Fluid2
+    writes_data:
+      - name: Velocity
+        mesh: Fluid1-Mesh
+      # - name: PressureGradient
+      #   mesh: Fluid1-Mesh
+    reads_data:
+      - name: Pressure
+        mesh: Fluid1-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Fluid2-Mesh
+        to_mesh: Fluid1-Mesh
+        constraint: consistent
+
+  - name: Fluid2
+    provides_mesh: 
+      - Fluid2-Mesh
+    receives_mesh:
+      - name: Fluid1-Mesh
+        from: Fluid1
+    reads_data:
+      - name: Velocity
+        mesh: Fluid2-Mesh
+      # - name: PressureGradient
+      #   mesh: Fluid2-Mesh
+    writes_data:
+      - name: Pressure
+        mesh: Fluid2-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Fluid1-Mesh
+        to_mesh: Fluid2-Mesh
+        constraint: consistent
+
+communication:
+  type: sockets
+  # Communication details not fully specified in the truncated XML
+
+coupling_scheme:
+  # Coupling scheme details not specified in the truncated XML

@@ -1,0 +1,100 @@
+---
+# preCICE Configuration Topology for Two-Scale Heat Conduction Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+  experimental: true
+
+logging:
+  enabled: true
+  type: stream
+  output: stdout
+  filter: 
+    severity: debug
+
+data:
+  - name: k_00
+    type: scalar
+  - name: k_01
+    type: scalar
+  - name: k_10
+    type: scalar
+  - name: k_11
+    type: scalar
+  - name: porosity
+    type: scalar
+  - name: concentration
+    type: scalar
+  - name: micro_sim_time
+    type: scalar
+  - name: grain_size
+    type: scalar
+  - name: active_state
+    type: scalar
+  - name: active_steps
+    type: scalar
+
+meshes:
+  - name: macro-mesh
+    dimensions: 2
+    data: 
+      - k_00
+      - k_01
+      - k_10
+      - k_11
+      - porosity
+      - concentration
+      - micro_sim_time
+      - grain_size
+      - active_state
+      - active_steps
+
+participants:
+  - name: macro-heat
+    provides_mesh: 
+      - macro-mesh
+    reads_data:
+      - name: k_00
+        mesh: macro-mesh
+      - name: k_01
+        mesh: macro-mesh
+      - name: k_10
+        mesh: macro-mesh
+      - name: k_11
+        mesh: macro-mesh
+      - name: porosity
+        mesh: macro-mesh
+    writes_data:
+      - name: concentration
+        mesh: macro-mesh
+
+  - name: Micro-Manager
+    receives_mesh:
+      - name: macro-mesh
+        from: macro-heat
+        direct_access: true
+        safety_factor: 0.0
+    reads_data:
+      - name: concentration
+        mesh: macro-mesh
+    writes_data:
+      - name: k_00
+        mesh: macro-mesh
+      - name: k_01
+        mesh: macro-mesh
+      - name: k_10
+        mesh: macro-mesh
+      - name: k_11
+        mesh: macro-mesh
+      - name: porosity
+        mesh: macro-mesh
+      - name: micro_sim_time
+        mesh: macro-mesh
+      - name: grain_size
+        mesh: macro-mesh
+      - name: active_state
+        mesh: macro-mesh
+
+# Note: Coupling scheme details not fully specified in the original XML

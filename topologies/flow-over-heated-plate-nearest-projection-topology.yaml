@@ -1,0 +1,93 @@
+---
+# preCICE Configuration Topology for Flow Over Heated Plate (Nearest Projection) Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 3
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Temperature
+    type: scalar
+  - name: Heat-Flux
+    type: scalar
+
+meshes:
+  - name: Fluid-Mesh-Centers
+    dimensions: 3
+    data: 
+      - Heat-Flux
+
+  - name: Fluid-Mesh-Nodes
+    dimensions: 3
+    data: 
+      - Temperature
+
+  - name: Solid-Mesh-Centers
+    dimensions: 3
+    data: 
+      - Temperature
+
+  - name: Solid-Mesh-Nodes
+    dimensions: 3
+    data: 
+      - Heat-Flux
+
+participants:
+  - name: Fluid
+    provides_mesh: 
+      - Fluid-Mesh-Centers
+      - Fluid-Mesh-Nodes
+    receives_mesh:
+      - name: Solid-Mesh-Nodes
+        from: Solid
+    reads_data:
+      - name: Heat-Flux
+        mesh: Fluid-Mesh-Centers
+    writes_data:
+      - name: Temperature
+        mesh: Fluid-Mesh-Nodes
+    mapping:
+      - type: nearest-projection
+        direction: read
+        from_mesh: Solid-Mesh-Nodes
+        to_mesh: Fluid-Mesh-Centers
+        constraint: consistent
+
+  - name: Solid
+    receives_mesh:
+      - name: Fluid-Mesh-Nodes
+        from: Fluid
+    provides_mesh: 
+      - Solid-Mesh-Nodes
+      - Solid-Mesh-Centers
+    reads_data:
+      - name: Temperature
+        mesh: Solid-Mesh-Centers
+    writes_data:
+      - name: Heat-Flux
+        mesh: Solid-Mesh-Nodes
+    mapping:
+      - type: nearest-projection
+        direction: read
+        from_mesh: Fluid-Mesh-Nodes
+        to_mesh: Solid-Mesh-Centers
+        constraint: consistent
+    # Commented out export in original XML
+    # export:
+    #   type: vtk
+    #   directory: precice-exports
+
+communication:
+  type: sockets
+  # Note: Communication details not fully specified in the truncated XML
+
+coupling_scheme:
+  # Note: Coupling scheme details not specified in the truncated XML

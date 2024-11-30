@@ -1,0 +1,87 @@
+---
+# preCICE Configuration Topology for Partitioned Heat Conduction Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Temperature
+    type: scalar
+    waveform_degree: 1
+  - name: Heat-Flux
+    type: scalar
+    waveform_degree: 1
+
+meshes:
+  - name: Dirichlet-Mesh
+    dimensions: 2
+    data: 
+      - Temperature
+      - Heat-Flux
+
+  - name: Neumann-Mesh
+    dimensions: 2
+    data: 
+      - Temperature
+      - Heat-Flux
+
+participants:
+  - name: Dirichlet
+    provides_mesh: 
+      - Dirichlet-Mesh
+    receives_mesh:
+      - name: Neumann-Mesh
+        from: Neumann
+    writes_data:
+      - name: Heat-Flux
+        mesh: Dirichlet-Mesh
+    reads_data:
+      - name: Temperature
+        mesh: Dirichlet-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Neumann-Mesh
+        to_mesh: Dirichlet-Mesh
+        constraint: consistent
+
+  - name: Neumann
+    provides_mesh: 
+      - Neumann-Mesh
+    receives_mesh:
+      - name: Dirichlet-Mesh
+        from: Dirichlet
+    writes_data:
+      - name: Temperature
+        mesh: Neumann-Mesh
+    reads_data:
+      - name: Heat-Flux
+        mesh: Neumann-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Dirichlet-Mesh
+        to_mesh: Neumann-Mesh
+        constraint: consistent
+
+communication:
+  type: sockets
+  acceptor: Dirichlet
+  connector: Neumann
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  max_time: 1.0
+  participants:
+    - first: Dirichlet
+    - second: Neumann

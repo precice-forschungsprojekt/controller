@@ -1,0 +1,84 @@
+---
+# preCICE Configuration Topology for Flow Around Controlled Moving Cylinder Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Displacement-Cylinder
+    type: vector
+  - name: Displacement-Spring
+    type: vector
+  - name: Force
+    type: vector
+
+meshes:
+  - name: Mesh-Controller
+    dimensions: 2
+    data: 
+      - Displacement-Cylinder
+      - Displacement-Spring
+
+  - name: Mesh-Fluid
+    dimensions: 2
+    data: 
+      - Displacement-Cylinder
+      - Force
+
+  - name: Mesh-Solid
+    dimensions: 2
+    data: 
+      - Displacement-Spring
+      - Displacement-Cylinder
+      - Force
+
+participants:
+  - name: Controller
+    provides_mesh: 
+      - Mesh-Controller
+    receives_mesh:
+      - name: Mesh-Solid
+        from: Solid
+    writes_data:
+      - name: Displacement-Spring
+        mesh: Mesh-Controller
+    reads_data:
+      - name: Displacement-Cylinder
+        mesh: Mesh-Controller
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Mesh-Solid
+        to_mesh: Mesh-Controller
+        constraint: consistent
+
+  - name: Fluid
+    provides_mesh: 
+      - Mesh-Fluid
+    receives_mesh:
+      - name: Mesh-Solid
+        from: Solid
+        geometric_filter: no-filter
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Mesh-Solid
+        to_mesh: Mesh-Fluid
+        constraint: consistent
+
+  - name: Solid
+    # Note: Partial configuration due to truncated XML
+    # Add more details if full configuration is available
+
+communication:
+  type: sockets
+  # Note: Specific communication details may need to be added

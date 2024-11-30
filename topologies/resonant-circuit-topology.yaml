@@ -1,0 +1,102 @@
+---
+# preCICE Configuration Topology for Resonant Circuit Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+data:
+  - name: Current
+    type: scalar
+    waveform_degree: 3
+  - name: Voltage
+    type: scalar
+    waveform_degree: 3
+
+meshes:
+  - name: Coil-Mesh
+    dimensions: 2
+    data: 
+      - Current
+      - Voltage
+
+  - name: Capacitor-Mesh
+    dimensions: 2
+    data: 
+      - Current
+      - Voltage
+
+participants:
+  - name: Coil
+    provides_mesh: 
+      - Coil-Mesh
+    writes_data:
+      - name: Current
+        mesh: Coil-Mesh
+    reads_data:
+      - name: Voltage
+        mesh: Coil-Mesh
+
+  - name: Capacitor
+    provides_mesh: 
+      - Capacitor-Mesh
+    receives_mesh:
+      - name: Coil-Mesh
+        from: Coil
+    writes_data:
+      - name: Voltage
+        mesh: Capacitor-Mesh
+    reads_data:
+      - name: Current
+        mesh: Capacitor-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: write
+        from_mesh: Capacitor-Mesh
+        to_mesh: Coil-Mesh
+        constraint: consistent
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Coil-Mesh
+        to_mesh: Capacitor-Mesh
+        constraint: consistent
+    watch_point:
+      name: VoltageCurrent
+      mesh: Capacitor-Mesh
+      coordinate: [0.0, 0.0]
+
+communication:
+  type: sockets
+  acceptor: Coil
+  connector: Capacitor
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  max_time: 10
+  time_window_size: 1
+  max_iterations: 100
+  participants:
+    - first: Coil
+    - second: Capacitor
+  data_exchange:
+    - data: Current
+      mesh: Coil-Mesh
+      from: Coil
+      to: Capacitor
+      substeps: true
+    - data: Voltage
+      mesh: Coil-Mesh
+      from: Capacitor
+      to: Coil
+      substeps: true
+  convergence_measures:
+    - data: Current
+      mesh: Coil-Mesh
+      type: relative
+      limit: 1e-3
+    - data: Voltage
+      mesh: Coil-Mesh
+      type: relative
+      limit: 1e-3
