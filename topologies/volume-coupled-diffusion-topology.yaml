@@ -1,0 +1,123 @@
+---
+# preCICE Configuration Topology for Volume Coupled Diffusion Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Drain-Data
+    type: scalar
+  - name: Source-Data
+    type: scalar
+
+meshes:
+  - name: Source-Mesh
+    dimensions: 2
+    data: 
+      - Drain-Data
+      - Source-Data
+
+  - name: Drain-Mesh
+    dimensions: 2
+    data: 
+      - Drain-Data
+      - Source-Data
+
+participants:
+  - name: Source
+    provides_mesh: 
+      - Source-Mesh
+    receives_mesh:
+      - name: Drain-Mesh
+        from: Drain
+    writes_data:
+      - name: Source-Data
+        mesh: Source-Mesh
+    reads_data:
+      - name: Drain-Data
+        mesh: Source-Mesh
+    mapping:
+      - type: rbf
+        direction: read
+        from_mesh: Drain-Mesh
+        to_mesh: Source-Mesh
+        constraint: consistent
+        basis_function: 
+          type: compact-polynomial-c6
+          support_radius: 1
+
+  - name: Drain
+    provides_mesh: 
+      - Drain-Mesh
+    receives_mesh:
+      - name: Source-Mesh
+        from: Source
+    writes_data:
+      - name: Drain-Data
+        mesh: Drain-Mesh
+    reads_data:
+      - name: Source-Data
+        mesh: Drain-Mesh
+    mapping:
+      - type: rbf
+        direction: read
+        from_mesh: Source-Mesh
+        to_mesh: Drain-Mesh
+        constraint: consistent
+        basis_function: 
+          type: compact-polynomial-c6
+          support_radius: 1
+
+communication:
+  type: sockets
+  acceptor: Source
+  connector: Drain
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  max_time: 10.0
+  time_window_size: 0.1
+  max_iterations: 100
+  participants:
+    - first: Source
+    - second: Drain
+  data_exchange:
+    - data: Source-Data
+      mesh: Source-Mesh
+      from: Source
+      to: Drain
+    - data: Drain-Data
+      mesh: Drain-Mesh
+      from: Drain
+      to: Source
+      initialize: true
+  convergence_measures:
+    - data: Source-Data
+      mesh: Source-Mesh
+      type: relative
+      limit: 1e-5
+    - data: Drain-Data
+      mesh: Drain-Mesh
+      type: relative
+      limit: 1e-5
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: Drain-Data
+        mesh: Drain-Mesh
+    initial_relaxation: 0.1
+    max_used_iterations: 10
+    time_windows_reused: 5
+    filter:
+      type: QR2
+      limit: 1e-3

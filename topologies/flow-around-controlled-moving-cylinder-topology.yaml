@@ -1,0 +1,157 @@
+---
+# preCICE Configuration Topology for Flow Around Controlled Moving Cylinder Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Displacement-Cylinder
+    type: vector
+  - name: Displacement-Spring
+    type: vector
+  - name: Force
+    type: vector
+
+meshes:
+  - name: Mesh-Controller
+    dimensions: 2
+    data: 
+      - Displacement-Cylinder
+      - Displacement-Spring
+
+  - name: Mesh-Fluid
+    dimensions: 2
+    data: 
+      - Displacement-Cylinder
+      - Force
+
+  - name: Mesh-Solid
+    dimensions: 2
+    data: 
+      - Displacement-Spring
+      - Displacement-Cylinder
+      - Force
+
+participants:
+  - name: Controller
+    provides_mesh: 
+      - Mesh-Controller
+    receives_mesh:
+      - name: Mesh-Solid
+        from: Solid
+    writes_data:
+      - name: Displacement-Spring
+        mesh: Mesh-Controller
+    reads_data:
+      - name: Displacement-Cylinder
+        mesh: Mesh-Controller
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Mesh-Solid
+        to_mesh: Mesh-Controller
+        constraint: consistent
+
+  - name: Fluid
+    provides_mesh: 
+      - Mesh-Fluid
+    receives_mesh:
+      - name: Mesh-Solid
+        from: Solid
+        geometric_filter: no-filter
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Mesh-Solid
+        to_mesh: Mesh-Fluid
+        constraint: consistent
+      - type: nearest-neighbor
+        direction: write
+        from_mesh: Mesh-Fluid
+        to_mesh: Mesh-Solid
+        constraint: conservative
+    writes_data:
+      - name: Force
+        mesh: Mesh-Fluid
+    reads_data:
+      - name: Displacement-Cylinder
+        mesh: Mesh-Fluid
+
+  - name: Solid
+    provides_mesh: 
+      - Mesh-Solid
+    receives_mesh:
+      - name: Mesh-Controller
+        from: Controller
+    writes_data:
+      - name: Displacement-Cylinder
+        mesh: Mesh-Solid
+    reads_data:
+      - name: Force
+        mesh: Mesh-Solid
+      - name: Displacement-Spring
+        mesh: Mesh-Solid
+    watch_point:
+      name: Spring
+      mesh: Mesh-Solid
+      coordinate: [0.0, 0.0]
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Mesh-Controller
+        to_mesh: Mesh-Solid
+        constraint: consistent
+
+communication:
+  - type: sockets
+    acceptor: Controller
+    connector: Solid
+    exchange_directory: ../
+  - type: sockets
+    acceptor: Fluid
+    connector: Solid
+    exchange_directory: ../
+
+coupling_schemes:
+  - type: serial-explicit
+    max_time: 3
+    time_window_size: 0.00025
+    participants:
+      - first: Fluid
+      - second: Solid
+    data_exchange:
+      - data: Force
+        mesh: Mesh-Solid
+        from: Fluid
+        to: Solid
+      - data: Displacement-Cylinder
+        mesh: Mesh-Solid
+        from: Solid
+        to: Fluid
+        initialize: true
+
+  - type: serial-explicit
+    max_time: 3
+    time_window_size: 0.00025
+    participants:
+      - first: Solid
+      - second: Controller
+    data_exchange:
+      - data: Displacement-Spring
+        mesh: Mesh-Controller
+        from: Controller
+        to: Solid
+        initialize: true
+      - data: Displacement-Cylinder
+        mesh: Mesh-Solid
+        from: Solid
+        to: Controller

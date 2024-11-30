@@ -1,0 +1,215 @@
+---
+# preCICE Configuration Topology for Heat Exchanger Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 3
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Heat-Transfer-Coefficient-Solid
+    type: scalar
+  - name: Sink-Temperature-Solid
+    type: scalar
+  - name: Heat-Transfer-Coefficient-Fluid-Inner
+    type: scalar
+  - name: Sink-Temperature-Fluid-Inner
+    type: scalar
+  - name: Heat-Transfer-Coefficient-Fluid-Outer
+    type: scalar
+  - name: Sink-Temperature-Fluid-Outer
+    type: scalar
+
+meshes:
+  - name: Solid-to-Fluid-Inner
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+      - Sink-Temperature-Fluid-Inner
+      - Heat-Transfer-Coefficient-Fluid-Inner
+
+  - name: Solid-to-Fluid-Outer
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+      - Sink-Temperature-Fluid-Outer
+      - Heat-Transfer-Coefficient-Fluid-Outer
+
+  - name: Fluid-Inner-to-Solid
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Fluid-Inner
+      - Heat-Transfer-Coefficient-Fluid-Inner
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+
+  - name: Fluid-Outer-to-Solid
+    dimensions: 3
+    data: 
+      - Sink-Temperature-Fluid-Outer
+      - Heat-Transfer-Coefficient-Fluid-Outer
+      - Sink-Temperature-Solid
+      - Heat-Transfer-Coefficient-Solid
+
+participants:
+  - name: Solid
+    provides_mesh: 
+      - Solid-to-Fluid-Inner
+      - Solid-to-Fluid-Outer
+    receives_mesh:
+      - name: Fluid-Inner-to-Solid
+        from: Fluid-Inner
+      - name: Fluid-Outer-to-Solid
+        from: Fluid-Outer
+    writes_data:
+      - name: Sink-Temperature-Solid
+        mesh: Solid-to-Fluid-Inner
+      - name: Heat-Transfer-Coefficient-Solid
+        mesh: Solid-to-Fluid-Inner
+      - name: Sink-Temperature-Solid
+        mesh: Solid-to-Fluid-Outer
+      - name: Heat-Transfer-Coefficient-Solid
+        mesh: Solid-to-Fluid-Outer
+    reads_data:
+      - name: Sink-Temperature-Fluid-Inner
+        mesh: Solid-to-Fluid-Inner
+      - name: Heat-Transfer-Coefficient-Fluid-Inner
+        mesh: Solid-to-Fluid-Inner
+      - name: Sink-Temperature-Fluid-Outer
+        mesh: Solid-to-Fluid-Outer
+      - name: Heat-Transfer-Coefficient-Fluid-Outer
+        mesh: Solid-to-Fluid-Outer
+    mapping:
+      - type: nearest-neighbor
+        constraint: consistent
+        direction: read
+        from_mesh: Fluid-Inner-to-Solid
+        to_mesh: Solid-to-Fluid-Inner
+      - type: nearest-neighbor
+        constraint: consistent
+        direction: read
+        from_mesh: Fluid-Outer-to-Solid
+        to_mesh: Solid-to-Fluid-Outer
+
+  - name: Fluid-Inner
+    provides_mesh: 
+      - Fluid-Inner-to-Solid
+    receives_mesh:
+      - name: Solid-to-Fluid-Inner
+        from: Solid
+    writes_data:
+      - name: Sink-Temperature-Fluid-Inner
+        mesh: Fluid-Inner-to-Solid
+      - name: Heat-Transfer-Coefficient-Fluid-Inner
+        mesh: Fluid-Inner-to-Solid
+    reads_data:
+      - name: Sink-Temperature-Solid
+        mesh: Fluid-Inner-to-Solid
+      - name: Heat-Transfer-Coefficient-Solid
+        mesh: Fluid-Inner-to-Solid
+    mapping:
+      - type: nearest-neighbor
+        constraint: consistent
+        direction: read
+        from_mesh: Solid-to-Fluid-Inner
+        to_mesh: Fluid-Inner-to-Solid
+
+  - name: Fluid-Outer
+    provides_mesh: 
+      - Fluid-Outer-to-Solid
+    receives_mesh:
+      - name: Solid-to-Fluid-Outer
+        from: Solid
+    writes_data:
+      - name: Sink-Temperature-Fluid-Outer
+        mesh: Fluid-Outer-to-Solid
+      - name: Heat-Transfer-Coefficient-Fluid-Outer
+        mesh: Fluid-Outer-to-Solid
+    reads_data:
+      - name: Sink-Temperature-Solid
+        mesh: Fluid-Outer-to-Solid
+      - name: Heat-Transfer-Coefficient-Solid
+        mesh: Fluid-Outer-to-Solid
+    mapping:
+      - type: nearest-neighbor
+        constraint: consistent
+        direction: read
+        from_mesh: Solid-to-Fluid-Outer
+        to_mesh: Fluid-Outer-to-Solid
+
+communication:
+  - type: sockets
+    connector: Fluid-Inner
+    acceptor: Solid
+    exchange_directory: ..
+
+  - type: sockets
+    connector: Fluid-Outer
+    acceptor: Solid
+    exchange_directory: ..
+
+coupling_schemes:
+  - type: parallel-explicit
+    time_window_size: 1
+    max_time: 500
+    participants:
+      - first: Solid
+      - second: Fluid-Inner
+    data_exchange:
+      - data: Sink-Temperature-Solid
+        mesh: Solid-to-Fluid-Inner
+        from: Solid
+        to: Fluid-Inner
+        initialize: true
+      - data: Heat-Transfer-Coefficient-Solid
+        mesh: Solid-to-Fluid-Inner
+        from: Solid
+        to: Fluid-Inner
+        initialize: true
+      - data: Sink-Temperature-Fluid-Inner
+        mesh: Fluid-Inner-to-Solid
+        from: Fluid-Inner
+        to: Solid
+        initialize: true
+      - data: Heat-Transfer-Coefficient-Fluid-Inner
+        mesh: Fluid-Inner-to-Solid
+        from: Fluid-Inner
+        to: Solid
+        initialize: true
+
+  - type: parallel-explicit
+    time_window_size: 1
+    max_time: 500
+    participants:
+      - first: Solid
+      - second: Fluid-Outer
+    data_exchange:
+      - data: Sink-Temperature-Solid
+        mesh: Solid-to-Fluid-Outer
+        from: Solid
+        to: Fluid-Outer
+        initialize: true
+      - data: Heat-Transfer-Coefficient-Solid
+        mesh: Solid-to-Fluid-Outer
+        from: Solid
+        to: Fluid-Outer
+        initialize: true
+      - data: Sink-Temperature-Fluid-Outer
+        mesh: Fluid-Outer-to-Solid
+        from: Fluid-Outer
+        to: Solid
+        initialize: true
+      - data: Heat-Transfer-Coefficient-Fluid-Outer
+        mesh: Fluid-Outer-to-Solid
+        from: Fluid-Outer
+        to: Solid
+        initialize: true

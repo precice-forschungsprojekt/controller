@@ -1,0 +1,75 @@
+---
+# preCICE Configuration Topology for Channel Transport Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Velocity
+    type: vector
+
+meshes:
+  - name: Fluid-Mesh
+    dimensions: 2
+    data: 
+      - Velocity
+
+  - name: Transport-Mesh
+    dimensions: 2
+    data: 
+      - Velocity
+
+participants:
+  - name: Fluid
+    provides_mesh: 
+      - Fluid-Mesh
+    receives_mesh:
+      - name: Transport-Mesh
+        from: Transport
+    writes_data:
+      - name: Velocity
+        mesh: Fluid-Mesh
+    mapping:
+      - type: rbf
+        direction: write
+        from_mesh: Fluid-Mesh
+        to_mesh: Transport-Mesh
+        constraint: consistent
+        basis_function:
+          type: compact-tps-c2
+          support_radius: 0.4
+
+  - name: Transport
+    provides_mesh: 
+      - Transport-Mesh
+    reads_data:
+      - name: Velocity
+        mesh: Transport-Mesh
+
+communication:
+  type: sockets
+  acceptor: Fluid
+  connector: Transport
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-explicit
+  time_window_size: 0.005
+  max_time: 1.0
+  participants:
+    - first: Fluid
+    - second: Transport
+  data_exchange:
+    - data: Velocity
+      mesh: Transport-Mesh
+      from: Fluid
+      to: Transport

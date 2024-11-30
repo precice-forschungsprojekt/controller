@@ -1,0 +1,102 @@
+---
+# preCICE Configuration Topology for Quickstart Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Force
+    type: vector
+  - name: Displacement
+    type: vector
+
+meshes:
+  - name: Fluid-Mesh
+    dimensions: 2
+    data: 
+      - Force
+      - Displacement
+
+  - name: Solid-Mesh
+    dimensions: 2
+    data: 
+      - Displacement
+      - Force
+
+participants:
+  - name: Fluid
+    provides_mesh: 
+      - Fluid-Mesh
+    receives_mesh:
+      - name: Solid-Mesh
+        from: Solid
+    reads_data:
+      - name: Displacement
+        mesh: Fluid-Mesh
+    writes_data:
+      - name: Force
+        mesh: Fluid-Mesh
+    mapping:
+      - type: rbf
+        direction: read
+        from_mesh: Solid-Mesh
+        to_mesh: Fluid-Mesh
+        constraint: consistent
+        basis_function: 
+          type: thin-plate-splines
+      - type: rbf
+        direction: write
+        from_mesh: Fluid-Mesh
+        to_mesh: Solid-Mesh
+        constraint: conservative
+        basis_function: 
+          type: thin-plate-splines
+
+  - name: Solid
+    provides_mesh: 
+      - Solid-Mesh
+    reads_data:
+      - name: Force
+        mesh: Solid-Mesh
+    writes_data:
+      - name: Displacement
+        mesh: Solid-Mesh
+    watch_point:
+      name: Flap-Tip
+      mesh: Solid-Mesh
+      coordinate: [0.25, 0.0]
+    export:
+      type: vtk
+      directory: precice-exports
+
+communication:
+  type: sockets
+  acceptor: Fluid
+  connector: Solid
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-explicit
+  time_window_size: 2.5e-2
+  max_time: 2.5
+  participants:
+    - first: Solid
+    - second: Fluid
+  data_exchange:
+    - data: Force
+      mesh: Solid-Mesh
+      from: Fluid
+      to: Solid
+    - data: Displacement
+      mesh: Solid-Mesh
+      from: Solid
+      to: Fluid

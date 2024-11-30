@@ -1,0 +1,119 @@
+---
+# preCICE Configuration Topology for Elastic Tube 1D Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  sink:
+    filter: "%Severity% > debug"
+
+data:
+  - name: Pressure
+    type: scalar
+  - name: CrossSectionLength
+    type: scalar
+
+meshes:
+  - name: Fluid-Nodes-Mesh
+    dimensions: 2
+    data: 
+      - CrossSectionLength
+      - Pressure
+
+  - name: Solid-Nodes-Mesh
+    dimensions: 2
+    data: 
+      - CrossSectionLength
+      - Pressure
+
+participants:
+  - name: Fluid
+    provides_mesh: 
+      - Fluid-Nodes-Mesh
+    receives_mesh:
+      - name: Solid-Nodes-Mesh
+        from: Solid
+    writes_data:
+      - name: Pressure
+        mesh: Fluid-Nodes-Mesh
+    reads_data:
+      - name: CrossSectionLength
+        mesh: Fluid-Nodes-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Solid-Nodes-Mesh
+        to_mesh: Fluid-Nodes-Mesh
+        constraint: consistent
+    watch_point:
+      name: Middle
+      mesh: Fluid-Nodes-Mesh
+      coordinate: [5, 0]
+
+  - name: Solid
+    provides_mesh: 
+      - Solid-Nodes-Mesh
+    receives_mesh:
+      - name: Fluid-Nodes-Mesh
+        from: Fluid
+    writes_data:
+      - name: CrossSectionLength
+        mesh: Solid-Nodes-Mesh
+    reads_data:
+      - name: Pressure
+        mesh: Solid-Nodes-Mesh
+    mapping:
+      - type: nearest-neighbor
+        direction: read
+        from_mesh: Fluid-Nodes-Mesh
+        to_mesh: Solid-Nodes-Mesh
+        constraint: consistent
+
+communication:
+  type: sockets
+  acceptor: Fluid
+  connector: Solid
+  exchange_directory: ..
+
+coupling_scheme:
+  type: serial-implicit
+  max_time: 1.0
+  time_window_size: 0.01
+  max_iterations: 40
+  participants:
+    - first: Fluid
+    - second: Solid
+  data_exchange:
+    - data: Pressure
+      mesh: Fluid-Nodes-Mesh
+      from: Fluid
+      to: Solid
+    - data: CrossSectionLength
+      mesh: Solid-Nodes-Mesh
+      from: Solid
+      to: Fluid
+      initialize: true
+  convergence_measures:
+    - data: Pressure
+      mesh: Fluid-Nodes-Mesh
+      type: relative
+      limit: 1e-5
+    - data: CrossSectionLength
+      mesh: Solid-Nodes-Mesh
+      type: relative
+      limit: 1e-5
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: CrossSectionLength
+        mesh: Solid-Nodes-Mesh
+    initial_relaxation: 0.01
+    max_used_iterations: 50
+    time_windows_reused: 8
+    filter:
+      type: QR2
+      limit: 1e-3

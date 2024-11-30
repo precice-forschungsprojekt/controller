@@ -1,0 +1,135 @@
+---
+# preCICE Configuration Topology for Turek-Hron FSI3 Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  filter: 
+    severity: debug
+    rank: 0
+  format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Stress
+    type: vector
+  - name: Displacement
+    type: vector
+
+meshes:
+  - name: Fluid-Mesh-Centers
+    dimensions: 2
+    data: 
+      - Stress
+
+  - name: Fluid-Mesh-Nodes
+    dimensions: 2
+    data: 
+      - Displacement
+
+  - name: Solid-Mesh
+    dimensions: 2
+    data: 
+      - Displacement
+      - Stress
+
+participants:
+  - name: Fluid
+    provides_mesh: 
+      - Fluid-Mesh-Nodes
+      - Fluid-Mesh-Centers
+    receives_mesh:
+      - name: Solid-Mesh
+        from: Solid
+    reads_data:
+      - name: Displacement
+        mesh: Fluid-Mesh-Nodes
+    writes_data:
+      - name: Stress
+        mesh: Fluid-Mesh-Centers
+    mapping:
+      - type: rbf
+        direction: read
+        from_mesh: Solid-Mesh
+        to_mesh: Fluid-Mesh-Nodes
+        constraint: consistent
+        basis_function: 
+          type: compact-polynomial-c6
+          support_radius: 0.35
+
+  - name: Solid
+    provides_mesh: 
+      - Solid-Mesh
+    receives_mesh:
+      - name: Fluid-Mesh-Centers
+        from: Fluid
+    reads_data:
+      - name: Stress
+        mesh: Solid-Mesh
+    writes_data:
+      - name: Displacement
+        mesh: Solid-Mesh
+    watch_point:
+      name: Flap-Tip
+      mesh: Solid-Mesh
+      coordinate: [0.6, 0.2]
+    mapping:
+      - type: rbf
+        direction: read
+        from_mesh: Fluid-Mesh-Centers
+        to_mesh: Solid-Mesh
+        constraint: consistent
+        basis_function: 
+          type: compact-polynomial-c6
+          support_radius: 0.35
+
+communication:
+  type: sockets
+  acceptor: Fluid
+  connector: Solid
+  exchange_directory: ..
+
+coupling_scheme:
+  type: parallel-implicit
+  time_window_size: 1e-3
+  max_time: 15
+  max_iterations: 100
+  participants:
+    - first: Fluid
+    - second: Solid
+  data_exchange:
+    - data: Stress
+      mesh: Fluid-Mesh-Centers
+      from: Fluid
+      to: Solid
+    - data: Displacement
+      mesh: Solid-Mesh
+      from: Solid
+      to: Fluid
+  convergence_measures:
+    - data: Stress
+      mesh: Fluid-Mesh-Centers
+      type: relative
+      limit: 1e-4
+    - data: Displacement
+      mesh: Solid-Mesh
+      type: relative
+      limit: 1e-4
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: Displacement
+        mesh: Solid-Mesh
+      - name: Stress
+        mesh: Fluid-Mesh-Centers
+    preconditioner:
+      type: residual-sum
+    filter:
+      type: QR2
+      limit: 1.2e-3
+    initial_relaxation: 0.1
+    max_used_iterations: 60
+    time_windows_reused: 15

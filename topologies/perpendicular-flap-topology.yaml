@@ -1,0 +1,125 @@
+---
+# preCICE Configuration Topology for Perpendicular Flap Example
+version: 1.0
+
+configuration:
+  type: precice
+  dimensions: 2
+
+logging:
+  enabled: true
+  sink:
+    filter: "%Severity% > debug and %Rank% = 0"
+    format: "---[precice] %ColorizedSeverity% %Message%"
+
+data:
+  - name: Force
+    type: vector
+  - name: Displacement
+    type: vector
+
+meshes:
+  - name: Fluid-Mesh
+    dimensions: 2
+    data: 
+      - Force
+      - Displacement
+
+  - name: Solid-Mesh
+    dimensions: 2
+    data: 
+      - Displacement
+      - Force
+
+participants:
+  - name: Fluid
+    provides_mesh: 
+      - Fluid-Mesh
+    receives_mesh:
+      - name: Solid-Mesh
+        from: Solid
+    writes_data:
+      - name: Force
+        mesh: Fluid-Mesh
+    reads_data:
+      - name: Displacement
+        mesh: Fluid-Mesh
+    mapping:
+      - type: rbf
+        direction: write
+        from_mesh: Fluid-Mesh
+        to_mesh: Solid-Mesh
+        constraint: conservative
+        basis_function:
+          type: compact-polynomial-c6
+          support_radius: 1.0
+      - type: rbf
+        direction: read
+        from_mesh: Solid-Mesh
+        to_mesh: Fluid-Mesh
+        constraint: consistent
+        basis_function:
+          type: compact-polynomial-c6
+          support_radius: 1.0
+
+  - name: Solid
+    provides_mesh: 
+      - Solid-Mesh
+    writes_data:
+      - name: Displacement
+        mesh: Solid-Mesh
+    reads_data:
+      - name: Force
+        mesh: Solid-Mesh
+    watch_point:
+      name: Flap-Tip
+      mesh: Solid-Mesh
+      coordinate: [0.0, 1]
+
+communication:
+  type: sockets
+  acceptor: Fluid
+  connector: Solid
+  exchange_directory: ..
+
+coupling_scheme:
+  type: parallel-implicit
+  time_window_size: 0.01
+  max_time: 5
+  max_iterations: 50
+  participants:
+    - first: Fluid
+    - second: Solid
+  data_exchange:
+    - data: Force
+      mesh: Solid-Mesh
+      from: Fluid
+      to: Solid
+    - data: Displacement
+      mesh: Solid-Mesh
+      from: Solid
+      to: Fluid
+  convergence_measures:
+    - data: Displacement
+      mesh: Solid-Mesh
+      type: relative
+      limit: 5e-3
+    - data: Force
+      mesh: Solid-Mesh
+      type: relative
+      limit: 5e-3
+  acceleration:
+    type: IQN-ILS
+    data:
+      - name: Displacement
+        mesh: Solid-Mesh
+      - name: Force
+        mesh: Solid-Mesh
+    preconditioner:
+      type: residual-sum
+    filter:
+      type: QR2
+      limit: 1e-2
+    initial_relaxation: 0.5
+    max_used_iterations: 100
+    time_windows_reused: 15
