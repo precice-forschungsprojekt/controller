@@ -1,4 +1,9 @@
+#!/usr/bin/python
+
+import os
+import logging
 from pathlib import Path
+from dotenv import load_dotenv
 from StructureHandler import StructureHandler
 from precice_struct import PS_PreCICEConfig
 import yaml
@@ -6,14 +11,38 @@ from ui_struct.UI_UserInput import UI_UserInput
 from myutils.UT_PCErrorLogging import UT_PCErrorLogging
 from Logger import Logger
 import shutil
-import os
-from dotenv import load_dotenv
+import sys
+
+# Load environment variables
+load_dotenv('config.env')
+
+def resolve_path(path_str: str, base_dir: Path = None) -> Path:
+    """
+    Resolve a path string to an absolute path, optionally relative to a base directory.
+    
+    :param path_str: Path string to resolve
+    :param base_dir: Optional base directory to resolve relative paths against
+    :return: Resolved absolute path
+    """
+    path = Path(path_str)
+    
+    # If path is already absolute, return it
+    if path.is_absolute():
+        return path
+    
+    # If base_dir is provided, resolve relative to it
+    if base_dir:
+        return (base_dir / path).resolve()
+    
+    # Otherwise, resolve relative to the script's directory
+    return (Path(__file__).parent / path).resolve()
 
 class FileGenerator:
     def __init__(self, file: Path) -> None:
         """ Class which takes care of generating the content of the necessary files
             :param file: Input yaml file that is needed for generation of the precice-config.xml file"""
-        self.input_file = file
+        self.base_dir = Path(__file__).parent
+        self.input_file = resolve_path(str(file), self.base_dir)
         self.precice_config = PS_PreCICEConfig()
         self.mylog = UT_PCErrorLogging()
         self.user_ui = UI_UserInput()
@@ -58,7 +87,7 @@ class FileGenerator:
     def generate_README(self) -> None:
         """Generates the README.md file"""
         try:
-            origin_template_README = Path(__file__).parent / "templates" / "template_README.md"
+            origin_template_README = resolve_path("templates/template_README.md", self.base_dir)
             self.logger.info("Reading in the template file for README.md")
             
             # Check if the template file exists
@@ -100,9 +129,6 @@ class FileGenerator:
         """Generates the adapter-config.json file."""
         #TODO
         pass
-
-# Load environment variables
-load_dotenv('config.env')
 
 if __name__ == "__main__":
     # Use environment variable or fallback to default
