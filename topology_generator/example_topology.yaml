@@ -1,0 +1,50 @@
+name: fluid-solid-interaction
+data:
+  - name: Force
+    type: vector
+  - name: Displacement
+    type: vector
+
+meshes:
+  - name: Fluid-Mesh
+    dimensions: 2
+    data: 
+      - Force
+      - Displacement
+  - name: Solid-Mesh
+    dimensions: 2
+    data: 
+      - Displacement
+      - Force
+
+participants:
+  - name: Fluid
+    provides_mesh: Fluid-Mesh
+    receives_meshes: 
+      - Solid-Mesh
+    read_data: 
+      - Displacement
+    write_data: 
+      - Force
+  - name: Solid
+    provides_mesh: Solid-Mesh
+    receives_meshes: 
+      - Fluid-Mesh
+    read_data: 
+      - Force
+    write_data: 
+      - Displacement
+
+coupling:
+  type: serial-explicit
+  time_window_size: 0.025
+  max_time: 2.5
+  exchanges:
+    - data: Force
+      mesh: Solid-Mesh
+      from: Fluid
+      to: Solid
+    - data: Displacement
+      mesh: Solid-Mesh
+      from: Solid
+      to: Fluid
