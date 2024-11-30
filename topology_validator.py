@@ -3,6 +3,7 @@ import re
 import yaml
 import jsonschema
 from typing import Dict, Any, List, Union, Optional
+from dotenv import load_dotenv
 
 class TopologyValidator:
     def __init__(self, topology_dir: str):
@@ -461,7 +462,12 @@ class TopologyValidator:
         return validation_reports
 
 def main():
-    topology_dir = r'c:/Users/thore/Desktop/precice/Forschungsprojekt/controller/topologies'
+    load_dotenv('config.env')
+    topology_dir = os.getenv('TOPOLOGY_DIR', './topologies')
+    
+    # Resolve relative path
+    topology_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), topology_dir))
+    
     validator = TopologyValidator(topology_dir)
     
     # Validate all topologies
