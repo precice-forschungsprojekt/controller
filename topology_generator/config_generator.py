@@ -5,7 +5,8 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 import re
 
-from controller.topology_generator.topology_schema import TopologyConfig
+from pydantic import ValidationError
+from controller.topology_generator.topology_schema import TopologyConfig, MappingType, CouplingSchemeType, DataType
 
 class PreciceConfigGenerator:
     def __init__(self, topology_file: str):
@@ -17,6 +18,9 @@ class PreciceConfigGenerator:
         try:
             with open(topology_file, 'r') as f:
                 topology_data = yaml.safe_load(f)
+            
+            # Convert enum values
+            topology_data = self._convert_enums(topology_data)
             
             # Validate topology configuration
             self.topology = TopologyConfig(**topology_data)
@@ -35,6 +39,89 @@ class PreciceConfigGenerator:
             print(f"Topology Configuration Error: {e}")
             raise
     
+    def _convert_enums(self, topology_data):
+        """
+        Convert integer enum values to their corresponding enum types
+        
+        :param topology_data: Raw topology configuration dictionary
+        :return: Processed topology configuration dictionary
+        """
+        # Convert mapping type
+        if 'participants' in topology_data:
+            for participant in topology_data['participants']:
+                if 'mapping_type' in participant:
+                    # Map integer to enum, defaulting to RBF
+                    mapping_type_map = {
+                        0: MappingType.RBF,
+                        1: MappingType.NEAREST_PROJECTION,
+                        2: MappingType.CONSISTENT,
+                        3: MappingType.CONSERVATIVE
+                    }
+                    participant['mapping_type'] = mapping_type_map.get(
+                        participant['mapping_type'], 
+                        MappingType.RBF
+                    )
+        
+        # Convert coupling type
+        if 'coupling' in topology_data:
+            if 'type' in topology_data['coupling']:
+                # Map integer to enum, defaulting to SERIAL_EXPLICIT
+                coupling_type_map = {
+                    0: CouplingSchemeType.SERIAL_EXPLICIT,
+                    1: CouplingSchemeType.SERIAL_IMPLICIT,
+                    2: CouplingSchemeType.PARALLEL_EXPLICIT,
+                    3: CouplingSchemeType.PARALLEL_IMPLICIT
+                }
+                topology_data['coupling']['type'] = coupling_type_map.get(
+                    topology_data['coupling']['type'], 
+                    CouplingSchemeType.SERIAL_EXPLICIT
+                )
+        
+        # Convert data type
+        if 'data' in topology_data:
+            for data in topology_data['data']:
+                if 'type' in data:
+                    # Map string to enum, defaulting to VECTOR
+                    data_type_map = {
+                        'scalar': DataType.SCALAR,
+                        'vector': DataType.VECTOR,
+                        'tensor': DataType.TENSOR
+                    }
+                    data['type'] = data_type_map.get(
+                        data['type'], 
+                        DataType.VECTOR
+                    )
+        
+        return topology_data
+
+    def _get_enum_value(self, enum_value):
+        """
+        Convert enum to its string representation for XML generation
+        
+        :param enum_value: Enum value to convert
+        :return: String representation of the enum
+        """
+        enum_to_xml_map = {
+            # Data Type Mapping
+            DataType.SCALAR: 'scalar',
+            DataType.VECTOR: 'vector',
+            DataType.TENSOR: 'tensor',
+            
+            # Mapping Type Mapping
+            MappingType.RBF: 'rbf',
+            MappingType.NEAREST_PROJECTION: 'nearest-projection',
+            MappingType.CONSISTENT: 'consistent',
+            MappingType.CONSERVATIVE: 'conservative',
+            
+            # Coupling Scheme Mapping
+            CouplingSchemeType.SERIAL_EXPLICIT: 'serial-explicit',
+            CouplingSchemeType.SERIAL_IMPLICIT: 'serial-implicit',
+            CouplingSchemeType.PARALLEL_EXPLICIT: 'parallel-explicit',
+            CouplingSchemeType.PARALLEL_IMPLICIT: 'parallel-implicit'
+        }
+        
+        return enum_to_xml_map.get(enum_value, str(enum_value))
+
     def generate_precice_config(self) -> str:
         """
         Generate preCICE XML configuration
@@ -54,69 +141,53 @@ class PreciceConfigGenerator:
         
         # Add data configurations
         for data in self.topology.data:
-            ET.SubElement(root, f"{{{root.attrib['xmlns']}}}data:{data.type}", name=data.name)
+            ET.SubElement(root, f"data:{self._get_enum_value(data.type)}", name=data.name)
         
         # Add mesh configurations
         for mesh in self.topology.meshes:
-            mesh_elem = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}mesh", name=mesh.name, dimensions=str(mesh.dimensions))
+            mesh_elem = ET.SubElement(root, "mesh", name=mesh.name, dimensions=str(mesh.dimensions))
             for data_name in mesh.data:
-                ET.SubElement(mesh_elem, f"{{{root.attrib['xmlns']}}}use-data", name=data_name)
+                ET.SubElement(mesh_elem, "use-data", name=data_name)
         
         # Add participant configurations
         for participant in self.topology.participants:
-            participant_elem = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}participant", name=participant.name)
+            participant_elem = ET.SubElement(root, "participant", name=participant.name)
             
             # Provide mesh
-            ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}provide-mesh", name=participant.provides_mesh)
+            ET.SubElement(participant_elem, "provide-mesh", name=participant.provides_mesh)
             
             # Receive meshes
             for recv_mesh in participant.receives_meshes:
-                ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}receive-mesh", 
+                ET.SubElement(participant_elem, "receive-mesh", 
                               name=recv_mesh, 
                               _from=next(p.name for p in self.topology.participants if p.provides_mesh == recv_mesh))
             
             # Read/Write data
             for read_data in participant.read_data:
-                ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}read-data", name=read_data, mesh=participant.provides_mesh)
+                ET.SubElement(participant_elem, "read-data", name=read_data, mesh=participant.provides_mesh)
             
             for write_data in participant.write_data:
-                ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}write-data", name=write_data, mesh=participant.provides_mesh)
-            
-            # Mapping configurations
-            if participant.mapping_type == "rbf":
-                rbf_read = ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}mapping:rbf", 
-                                         direction="read", 
-                                         _from=participant.receives_meshes[0] if participant.receives_meshes else "",
-                                         to=participant.provides_mesh,
-                                         constraint=participant.mapping_constraint)
-                ET.SubElement(rbf_read, f"{{{root.attrib['xmlns']}}}basis-function:thin-plate-splines")
-                
-                rbf_write = ET.SubElement(participant_elem, f"{{{root.attrib['xmlns']}}}mapping:rbf", 
-                                          direction="write", 
-                                          _from=participant.provides_mesh,
-                                          to=participant.receives_meshes[0] if participant.receives_meshes else "",
-                                          constraint=participant.mapping_constraint)
-                ET.SubElement(rbf_write, f"{{{root.attrib['xmlns']}}}basis-function:thin-plate-splines")
+                ET.SubElement(participant_elem, "write-data", name=write_data, mesh=participant.provides_mesh)
         
         # Add communication method (default to sockets)
         if len(self.topology.participants) > 1:
-            m2n = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}m2n:sockets", 
+            m2n = ET.SubElement(root, "m2n:sockets", 
                                 acceptor=self.topology.participants[0].name, 
                                 connector=self.topology.participants[1].name, 
                                 exchange_directory="..")
         
         # Add coupling scheme
-        coupling = ET.SubElement(root, f"{{{root.attrib['xmlns']}}}coupling-scheme:{self.topology.coupling.type}")
-        ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}time-window-size", value=str(self.topology.coupling.time_window_size))
-        ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}max-time", value=str(self.topology.coupling.max_time))
+        coupling = ET.SubElement(root, f"coupling-scheme:{self._get_enum_value(self.topology.coupling.type)}")
+        ET.SubElement(coupling, "time-window-size", value=str(self.topology.coupling.time_window_size))
+        ET.SubElement(coupling, "max-time", value=str(self.topology.coupling.max_time))
         
-        participants = ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}participants", 
+        participants = ET.SubElement(coupling, "participants", 
                                      first=self.topology.participants[0].name, 
                                      second=self.topology.participants[1].name)
         
         # Add exchanges
         for exchange in self.topology.coupling.exchanges:
-            ET.SubElement(coupling, f"{{{root.attrib['xmlns']}}}exchange", 
+            ET.SubElement(coupling, "exchange", 
                           data=exchange.get('data', ''), 
                           mesh=exchange.get('mesh', ''), 
                           _from=exchange.get('from', ''), 
