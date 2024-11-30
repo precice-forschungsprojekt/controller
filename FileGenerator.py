@@ -2,60 +2,143 @@
 
 import os
 import logging
+import yaml
 from pathlib import Path
 from dotenv import load_dotenv
 from StructureHandler import StructureHandler
 from precice_struct import PS_PreCICEConfig
-import yaml
 from ui_struct.UI_UserInput import UI_UserInput
 from myutils.UT_PCErrorLogging import UT_PCErrorLogging
 from Logger import Logger
 import shutil
 import sys
 
-# Load environment variables
-load_dotenv('config.env')
+# Load environment variables securely
+load_dotenv('config.env', override=False)
 
-def resolve_path(path_str: str, base_dir: Path = None) -> Path:
+def resolve_path(path_str: str, base_dir: Path = None, create: bool = False, 
+                 must_exist: bool = False, file_type: str = None) -> Path:
     """
-    Resolve a path string to an absolute path, optionally relative to a base directory.
+    Securely resolve and validate file paths.
     
     :param path_str: Path string to resolve
     :param base_dir: Optional base directory to resolve relative paths against
+    :param create: Create directory/file if it doesn't exist
+    :param must_exist: Require the path to already exist
+    :param file_type: Optional type constraint ('dir', 'file')
     :return: Resolved absolute path
+    :raises ValueError: For invalid path configurations
+    :raises PermissionError: For unauthorized path access
     """
+    # Sanitize input path
+    path_str = str(path_str).strip()
+    
+    # Prevent path traversal attacks
+    if '..' in path_str or path_str.startswith('/'):
+        raise ValueError(f"Potentially unsafe path: {path_str}")
+    
+    # Resolve path
     path = Path(path_str)
+    if not path.is_absolute():
+        # Use base directory if provided, otherwise use script directory
+        base = base_dir or Path(__file__).parent
+        path = (base / path).resolve()
     
-    # If path is already absolute, return it
-    if path.is_absolute():
-        return path
+    # Normalize and resolve to absolute path
+    path = path.resolve()
     
-    # If base_dir is provided, resolve relative to it
-    if base_dir:
-        return (base_dir / path).resolve()
+    # Validate path is within project root
+    project_root = Path(__file__).parent.resolve()
+    try:
+        path.relative_to(project_root)
+    except ValueError:
+        raise PermissionError(f"Path {path} is outside project root")
     
-    # Otherwise, resolve relative to the script's directory
-    return (Path(__file__).parent / path).resolve()
+    # Type-specific checks
+    if file_type == 'dir' and not path.is_dir():
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        elif must_exist:
+            raise ValueError(f"Directory not found: {path}")
+    
+    elif file_type == 'file' and not path.is_file():
+        if create:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        elif must_exist:
+            raise ValueError(f"File not found: {path}")
+    
+    return path
 
 class FileGenerator:
-    def __init__(self, file: Path) -> None:
-        """ Class which takes care of generating the content of the necessary files
-            :param file: Input yaml file that is needed for generation of the precice-config.xml file"""
-        self.base_dir = Path(__file__).parent
-        self.input_file = resolve_path(str(file), self.base_dir)
+    def __init__(self, file: Path, 
+                 topology_dir: str = None, 
+                 generated_dir: str = None):
+        """
+        Initialize FileGenerator with secure path handling.
+        
+        :param file: Input YAML file for configuration
+        :param topology_dir: Optional topology directory path
+        :param generated_dir: Optional generated files directory path
+        """
+        # Secure base directory resolution
+        self.base_dir = Path(__file__).parent.resolve()
+        
+        # Resolve input file with strict validation
+        self.input_file = resolve_path(
+            str(file), 
+            self.base_dir, 
+            must_exist=True, 
+            file_type='file'
+        )
+        
+        # Resolve topology directory with security checks
+        self.topology_dir = resolve_path(
+            topology_dir or os.getenv('TOPOLOGY_DIR', './topologies'),
+            self.base_dir,
+            create=True,
+            file_type='dir'
+        )
+        
+        # Resolve generated directory with security checks
+        self.generated_dir = resolve_path(
+            generated_dir or os.getenv('GENERATED_DIR', './_generated'),
+            self.base_dir,
+            create=True,
+            file_type='dir'
+        )
+        
+        # Secure logging configuration
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler(
+                    resolve_path(
+                        os.getenv('LOG_FILE', './logs/file_generator.log'), 
+                        self.base_dir, 
+                        create=True, 
+                        file_type='file'
+                    )
+                )
+            ]
+        )
+        
+        # Initialize components
         self.precice_config = PS_PreCICEConfig()
         self.mylog = UT_PCErrorLogging()
         self.user_ui = UI_UserInput()
         self.logger = Logger()
-        self.structure = StructureHandler()
+        self.structure_handler = StructureHandler()
 
     def generate_precice_config(self) -> None:
         """Generates the precice-config.xml file based on the topology.yaml file."""
         
         # Try to open the yaml file and get the configuration
         try:
-            with open(self.input_file, "r") as config_file:
-                config = yaml.load(config_file.read(), Loader=yaml.SafeLoader)
+            with self.input_file.open('r') as config_file:
+                config = yaml.safe_load(config_file)
                 self.logger.info(f"Input YAML file: {self.input_file}")
         except FileNotFoundError:
             self.logger.error(f"Input YAML file {self.input_file} not found.")
@@ -73,8 +156,8 @@ class FileGenerator:
         self.precice_config.create_config(self.user_ui)
 
         # Set the target of the file and write out to it
-        # Warning: self.structure.precice_config is of type Path, so it needs to be converted to str
-        target = str(self.structure.precice_config)
+        # Warning: self.structure_handler.precice_config is of type Path, so it needs to be converted to str
+        target = str(self.structure_handler.precice_config)
         try:
             self.logger.info(f"Writing preCICE config to {target}...")
             self.precice_config.write_precice_xml_config(target, self.mylog)
@@ -98,7 +181,7 @@ class FileGenerator:
             template_content = origin_template_README.read_text(encoding="utf-8")
             
             # Set the target for the README.md
-            target = self.structure.README
+            target = self.structure_handler.README
 
             self.logger.info(f"Writing the template to the target: {str(target)}")
             

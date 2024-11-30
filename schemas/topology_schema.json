@@ -1,0 +1,150 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "preCICE Topology Configuration Schema",
+    "description": "Comprehensive validation schema for preCICE topology configurations",
+    "type": "object",
+    "required": ["simulation", "participants", "couplings"],
+    "properties": {
+        "simulation": {
+            "type": "object",
+            "description": "Simulation-level configuration",
+            "required": ["name", "duration", "time_step"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                },
+                "duration": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                },
+                "time_step": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true
+                },
+                "precision": {
+                    "type": "string",
+                    "enum": ["single", "double"]
+                }
+            }
+        },
+        "participants": {
+            "type": "object",
+            "description": "Simulation participants configuration",
+            "minProperties": 1,
+            "patternProperties": {
+                "^[a-zA-Z_][a-zA-Z0-9_]*$": {
+                    "type": "object",
+                    "required": ["solver", "mesh"],
+                    "properties": {
+                        "solver": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "mesh": {
+                            "type": "object",
+                            "required": ["name", "dimensions"],
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "dimensions": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 3
+                                },
+                                "data_fields": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "required": ["name", "type"],
+                                        "properties": {
+                                            "name": {"type": "string"},
+                                            "type": {
+                                                "type": "string",
+                                                "enum": ["scalar", "vector", "tensor"]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "read_data": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "write_data": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        },
+        "couplings": {
+            "type": "array",
+            "description": "Coupling configurations between participants",
+            "items": {
+                "type": "object",
+                "required": ["participants", "mesh", "data"],
+                "properties": {
+                    "participants": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "uniqueItems": true,
+                        "items": {"type": "string"}
+                    },
+                    "mesh": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "data": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "required": ["name", "type"],
+                            "properties": {
+                                "name": {"type": "string"},
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["read", "write"]
+                                }
+                            }
+                        }
+                    },
+                    "coupling_scheme": {
+                        "type": "string",
+                        "enum": ["serial", "parallel", "loose", "tight"]
+                    }
+                }
+            }
+        }
+    },
+    "additionalProperties": false,
+    "allOf": [
+        {
+            "description": "Ensure all participant names in couplings exist in participants",
+            "properties": {
+                "couplings": {
+                    "type": "array",
+                    "items": {
+                        "properties": {
+                            "participants": {
+                                "type": "array",
+                                "items": {
+                                    "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

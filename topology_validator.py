@@ -1,501 +1,261 @@
+#!/usr/bin/python
+
 import os
-import re
+import sys
+import logging
+import json
 import yaml
 import jsonschema
-from typing import Dict, Any, List, Union, Optional
+from pathlib import Path
+from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 
+# Secure environment variable loading
+load_dotenv('config.env', override=False)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('topology_validation.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+
+class TopologyValidationError(Exception):
+    """Custom exception for topology validation errors."""
+    def __init__(self, message, error_type='validation', details=None):
+        super().__init__(message)
+        self.error_type = error_type
+        self.details = details or {}
+
 class TopologyValidator:
-    def __init__(self, topology_dir: str):
+    def __init__(self, schema_path: Optional[str] = None):
         """
-        Initialize the topology validator with advanced configuration checks
+        Initialize TopologyValidator with JSON schema.
         
-        :param topology_dir: Path to directory containing topology files
+        :param schema_path: Optional path to custom JSON schema
         """
-        self.topology_dir = topology_dir
-        self.topology_schema = self._create_topology_schema()
-        self.best_practices = self._define_best_practices()
-
-    def _define_best_practices(self) -> Dict[str, List[str]]:
+        # Resolve schema path
+        base_dir = Path(__file__).parent
+        self.schema_path = schema_path or base_dir / 'schemas' / 'topology_schema.json'
+        
+        # Load and validate schema
+        self.schema = self._load_json_schema()
+    
+    def _load_json_schema(self) -> Dict[str, Any]:
         """
-        Define a comprehensive set of best practices and recommendations
+        Load and validate JSON schema.
         
-        :return: Dictionary of best practice guidelines
+        :return: Parsed JSON schema
+        :raises TopologyValidationError: For schema loading issues
         """
-        return {
-            "coupling_scheme": [
-                "Prefer implicit coupling for better convergence",
-                "Use appropriate time window sizes",
-                "Implement convergence measures"
-            ],
-            "communication": [
-                "Minimize communication overhead",
-                "Use efficient communication methods",
-                "Consider network latency"
-            ],
-            "mapping": [
-                "Choose mapping method carefully",
-                "Ensure consistent mesh definitions",
-                "Use conservative or consistent constraints"
-            ],
-            "performance": [
-                "Optimize data exchange",
-                "Minimize unnecessary data transfers",
-                "Use appropriate acceleration techniques"
-            ]
-        }
-
-    def _create_topology_schema(self) -> Dict[str, Any]:
-        """
-        Create an advanced, flexible JSON schema for topology validation
+        try:
+            with open(self.schema_path, 'r') as schema_file:
+                schema = json.load(schema_file)
+            
+            # Validate schema structure
+            jsonschema.validators.Draft7Validator.check_schema(schema)
+            return schema
         
-        :return: Comprehensive JSON schema dictionary
-        """
-        return {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "type": "object",
-            "properties": {
-                "version": {
-                    "type": ["number", "string"],
-                    "minimum": 1.0,
-                    "description": "preCICE configuration version"
-                },
-                "configuration": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string", 
-                            "enum": ["precice", "custom"],
-                            "description": "Configuration type"
-                        },
-                        "dimensions": {
-                            "type": ["number", "string"], 
-                            "enum": [1, 2, 3, "1", "2", "3"],
-                            "description": "Spatial dimensions of the simulation"
-                        },
-                        "experimental": {
-                            "type": "boolean",
-                            "description": "Flag for experimental configurations"
-                        }
-                    },
-                    "additionalProperties": True
-                },
-                "logging": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {"type": "boolean"},
-                        "level": {
-                            "type": "string", 
-                            "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-                        },
-                        "sink": {
-                            "type": "object",
-                            "properties": {
-                                "type": {"type": "string"},
-                                "output": {"type": "string"}
-                            }
-                        }
-                    }
-                },
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "type": {
-                                "type": "string", 
-                                "enum": ["scalar", "vector", "tensor"]
-                            },
-                            "waveform_degree": {
-                                "type": ["number", "string"],
-                                "minimum": 0,
-                                "maximum": 10
-                            }
-                        },
-                        "required": ["name", "type"]
-                    },
-                    "uniqueItems": True
-                },
-                "meshes": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "dimensions": {
-                                "type": ["number", "string"], 
-                                "enum": [1, 2, 3, "1", "2", "3"]
-                            },
-                            "data": {
-                                "type": "array", 
-                                "items": {"type": "string"}
-                            }
-                        },
-                        "required": ["name", "dimensions"]
-                    },
-                    "uniqueItems": True
-                },
-                "participants": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "provides_mesh": {"type": "array", "items": {"type": "string"}},
-                            "receives_mesh": {"type": "array"},
-                            "writes_data": {"type": "array"},
-                            "reads_data": {"type": "array"},
-                            "mapping": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "type": {
-                                            "type": "string", 
-                                            "enum": [
-                                                "nearest-neighbor", 
-                                                "nearest-projection", 
-                                                "rbf", 
-                                                "linear"
-                                            ]
-                                        },
-                                        "constraint": {
-                                            "type": "string", 
-                                            "enum": ["consistent", "conservative"]
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "required": ["name"]
-                    }
-                },
-                "communication": {
-                    "oneOf": [
-                        {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string", 
-                                    "enum": ["sockets", "mpi", "serial"]
-                                },
-                                "network": {"type": "string"}
-                            }
-                        },
-                        {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "type": {
-                                        "type": "string", 
-                                        "enum": ["sockets", "mpi", "serial"]
-                                    },
-                                    "network": {"type": "string"}
-                                }
-                            }
-                        }
-                    ]
-                },
-                "coupling_scheme": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string", 
-                            "enum": [
-                                "serial-implicit", 
-                                "parallel-implicit", 
-                                "serial-explicit", 
-                                "parallel-explicit",
-                                "aitken",
-                                "IQN-IMVJ"
-                            ]
-                        },
-                        "max_time": {"type": ["number", "string"]},
-                        "time_window_size": {
-                            "type": ["number", "string"],
-                            "minimum": 0
-                        },
-                        "max_iterations": {
-                            "type": ["number", "string"],
-                            "minimum": 1,
-                            "maximum": 1000
-                        },
-                        "participants": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "first": {"type": "string"},
-                                    "second": {"type": "string"}
-                                }
-                            }
-                        },
-                        "acceleration": {
-                            "type": "object",
-                            "properties": {
-                                "type": {
-                                    "type": "string", 
-                                    "enum": [
-                                        "constant", 
-                                        "IQN-ILS", 
-                                        "IQN-IMVJ", 
-                                        "aitken"
-                                    ]
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "additionalProperties": True
-        }
-
-    def _format_validation_error(self, validation_error: jsonschema.exceptions.ValidationError) -> str:
-        """
-        Format validation errors with more context and suggestions
-        
-        :param validation_error: Validation error from jsonschema
-        :return: Formatted error message
-        """
-        error_path = ' -> '.join(str(path) for path in validation_error.path)
-        error_message = validation_error.message
-        
-        suggestions = {
-            "coupling_scheme.type": "Use valid coupling scheme types: 'serial-implicit', 'parallel-implicit', 'serial-explicit', 'parallel-explicit'",
-            "coupling_scheme.time_window_size": "Use numeric values or scientific notation (e.g., 1e-3)",
-            "coupling_scheme.participants": "Ensure participants have 'first' and optionally 'second' keys",
-            "configuration.dimensions": "Use numeric dimensions: 1, 2, or 3"
-        }
-        
-        suggestion = suggestions.get(error_path, "No specific suggestion available")
-        
-        return (f"Validation Error at {error_path}: {error_message}\n"
-                f"  Suggestion: {suggestion}")
-
-    def _validate_data_consistency(self, topology_data: Dict[str, Any]) -> List[str]:
-        """
-        Perform additional data consistency checks
-        
-        :param topology_data: Parsed topology data
-        :return: List of validation warnings
-        """
-        warnings = []
-        
-        # Check data names are unique
-        if 'data' in topology_data:
-            data_names = [data.get('name', '') for data in topology_data['data']]
-            if len(data_names) != len(set(data_names)):
-                warnings.append("Potential issue: Duplicate data names found")
-        
-        # Check mesh names are unique
-        if 'meshes' in topology_data:
-            mesh_names = [mesh.get('name', '') for mesh in topology_data['meshes']]
-            if len(mesh_names) != len(set(mesh_names)):
-                warnings.append("Potential issue: Duplicate mesh names found")
-        
-        return warnings
-
-    def _validate_mesh_data_references(self, topology_data: Dict[str, Any]) -> List[str]:
-        """
-        Validate that data references in meshes and participants are valid
-        
-        :param topology_data: Parsed topology data
-        :return: List of validation warnings
-        """
-        warnings = []
-        
-        # Get all data names
-        data_names = {data.get('name', '') for data in topology_data.get('data', [])}
-        
-        # Validate mesh data references
-        if 'meshes' in topology_data:
-            for mesh in topology_data['meshes']:
-                for data_name in mesh.get('data', []):
-                    if data_name not in data_names:
-                        warnings.append(f"Potential issue: Invalid data reference '{data_name}' in mesh '{mesh.get('name', 'Unknown')}'")
-        
-        # Validate participant data references
-        if 'participants' in topology_data:
-            for participant in topology_data['participants']:
-                for data_item in participant.get('writes_data', []):
-                    if data_item.get('name', '') not in data_names:
-                        warnings.append(f"Potential issue: Invalid write data reference '{data_item.get('name', '')}' in participant '{participant.get('name', 'Unknown')}'")
-                
-                for data_item in participant.get('reads_data', []):
-                    if data_item.get('name', '') not in data_names:
-                        warnings.append(f"Potential issue: Invalid read data reference '{data_item.get('name', '')}' in participant '{participant.get('name', 'Unknown')}'")
-        
-        return warnings
-
+        except (json.JSONDecodeError, jsonschema.exceptions.SchemaError) as e:
+            logger.error(f"Schema validation error: {e}")
+            raise TopologyValidationError(
+                f"Invalid JSON schema: {e}", 
+                error_type='schema_error'
+            )
+    
     def validate_topology(self, topology_file: str) -> Dict[str, Any]:
         """
-        Advanced topology validation with comprehensive checks
+        Comprehensive topology validation with detailed reporting.
         
-        :param topology_file: Path to the topology YAML file
-        :return: Validation report with errors, warnings, and recommendations
+        :param topology_file: Path to topology YAML file
+        :return: Validation report
+        :raises TopologyValidationError: For validation failures
         """
         validation_report = {
-            "file": topology_file,
-            "errors": [],
-            "warnings": [],
-            "recommendations": [],
-            "best_practices": []
+            'file': topology_file,
+            'status': 'pending',
+            'errors': [],
+            'warnings': [],
+            'recommendations': []
         }
         
         try:
+            # Load topology data
             with open(topology_file, 'r') as f:
                 topology_data = yaml.safe_load(f)
             
-            # Preprocess and validate
-            self._preprocess_data(topology_data)
-            
             # JSON Schema Validation
             try:
-                jsonschema.validate(instance=topology_data, schema=self.topology_schema)
+                jsonschema.validate(instance=topology_data, schema=self.schema)
+                validation_report['status'] = 'valid'
             except jsonschema.exceptions.ValidationError as ve:
-                validation_report["errors"].append(self._format_validation_error(ve))
+                validation_report['status'] = 'invalid'
+                validation_report['errors'].append(self._format_validation_error(ve))
             
             # Additional custom validations
-            validation_report["warnings"].extend(self._validate_data_consistency(topology_data))
-            validation_report["warnings"].extend(self._validate_mesh_data_references(topology_data))
+            self._validate_participant_consistency(topology_data, validation_report)
+            self._validate_coupling_configuration(topology_data, validation_report)
+            self._check_performance_recommendations(topology_data, validation_report)
             
-            # Performance and best practices recommendations
-            validation_report["recommendations"].extend(
-                self._generate_recommendations(topology_data)
-            )
-            
-            # Best practices guidance
-            validation_report["best_practices"] = self._check_best_practices(topology_data)
-            
+            return validation_report
+        
         except yaml.YAMLError as e:
-            validation_report["errors"].append(f"YAML Parsing Error: {e}")
-        except FileNotFoundError:
-            validation_report["errors"].append(f"File not found: {topology_file}")
+            logger.error(f"YAML parsing error in {topology_file}: {e}")
+            validation_report['status'] = 'error'
+            validation_report['errors'].append(f"YAML Parsing Error: {e}")
+        
+        except TopologyValidationError as tve:
+            logger.error(f"Topology validation error: {tve}")
+            validation_report['status'] = 'invalid'
+            validation_report['errors'].append(str(tve))
+        
         except Exception as e:
-            validation_report["errors"].append(f"Unexpected error: {e}")
+            logger.error(f"Unexpected validation error: {e}")
+            validation_report['status'] = 'error'
+            validation_report['errors'].append(f"Unexpected Error: {e}")
         
         return validation_report
-
-    def _preprocess_data(self, data: Dict[str, Any]):
+    
+    def _format_validation_error(self, error: jsonschema.exceptions.ValidationError) -> str:
         """
-        Advanced data preprocessing and normalization
+        Format JSON schema validation errors for readability.
         
-        :param data: Topology data dictionary
+        :param error: ValidationError from jsonschema
+        :return: Formatted error message
         """
-        # Normalize numeric values
-        numeric_keys = [
-            ('configuration', 'dimensions'),
-            ('coupling_scheme', 'max_time'),
-            ('coupling_scheme', 'time_window_size'),
-            ('coupling_scheme', 'max_iterations')
+        return (
+            f"Validation Error at {'/'.join(str(p) for p in error.path)}: "
+            f"{error.message}"
+        )
+    
+    def _validate_participant_consistency(self, topology_data: Dict[str, Any], 
+                                          report: Dict[str, Any]):
+        """
+        Validate participant configuration consistency.
+        
+        :param topology_data: Parsed topology data
+        :param report: Validation report to update
+        """
+        participants = topology_data.get('participants', {})
+        
+        # Check for duplicate mesh names
+        mesh_names = [
+            participant.get('mesh', {}).get('name') 
+            for participant in participants.values()
         ]
+        duplicate_meshes = set([name for name in mesh_names if mesh_names.count(name) > 1])
         
-        for section, key in numeric_keys:
-            if section in data and key in data[section]:
-                try:
-                    data[section][key] = float(data[section][key])
-                except (ValueError, TypeError):
-                    pass
-
-    def _generate_recommendations(self, topology_data: Dict[str, Any]) -> List[str]:
+        if duplicate_meshes:
+            report['warnings'].append(
+                f"Duplicate mesh names detected: {duplicate_meshes}"
+            )
+        
+        # Validate data field consistency
+        for participant_name, participant in participants.items():
+            mesh = participant.get('mesh', {})
+            data_fields = mesh.get('data_fields', [])
+            
+            # Check data field naming conventions
+            for field in data_fields:
+                if not field['name'].replace('_', '').isalnum():
+                    report['warnings'].append(
+                        f"Non-standard data field name in {participant_name}: {field['name']}"
+                    )
+    
+    def _validate_coupling_configuration(self, topology_data: Dict[str, Any], 
+                                         report: Dict[str, Any]):
         """
-        Generate performance and configuration recommendations
+        Validate coupling configuration details.
         
         :param topology_data: Parsed topology data
-        :return: List of recommendations
+        :param report: Validation report to update
         """
-        recommendations = []
+        couplings = topology_data.get('couplings', [])
+        participants = topology_data.get('participants', {}).keys()
         
-        # Coupling scheme recommendations
-        if 'coupling_scheme' in topology_data:
-            cs = topology_data['coupling_scheme']
-            if cs.get('type', '').endswith('explicit'):
-                recommendations.append(
-                    "Consider using implicit coupling for better convergence stability"
-                )
-        
-        # Communication recommendations
-        if 'communication' in topology_data:
-            comm = topology_data['communication']
-            if isinstance(comm, list) and len(comm) > 1:
-                recommendations.append(
-                    "Multiple communication configurations detected. Verify network efficiency."
-                )
-        
-        return recommendations
-
-    def _check_best_practices(self, topology_data: Dict[str, Any]) -> List[str]:
+        for coupling in couplings:
+            # Verify participants exist
+            for participant in coupling.get('participants', []):
+                if participant not in participants:
+                    report['errors'].append(
+                        f"Coupling references non-existent participant: {participant}"
+                    )
+            
+            # Check data consistency
+            for data in coupling.get('data', []):
+                if data['type'] not in ['read', 'write']:
+                    report['warnings'].append(
+                        f"Unusual data transfer type: {data['type']}"
+                    )
+    
+    def _check_performance_recommendations(self, topology_data: Dict[str, Any], 
+                                           report: Dict[str, Any]):
         """
-        Check configuration against predefined best practices
+        Generate performance and best practice recommendations.
         
         :param topology_data: Parsed topology data
-        :return: List of best practice recommendations
+        :param report: Validation report to update
         """
-        best_practices_found = []
+        simulation = topology_data.get('simulation', {})
+        time_step = simulation.get('time_step', 0)
         
-        # Coupling scheme best practices
-        if 'coupling_scheme' in topology_data:
-            cs = topology_data['coupling_scheme']
-            if cs.get('type', '').endswith('implicit'):
-                best_practices_found.extend(
-                    self.best_practices.get('coupling_scheme', [])
-                )
+        # Time step recommendations
+        if time_step < 0.001:
+            report['recommendations'].append(
+                "Very small time step detected. Consider performance implications."
+            )
         
-        return best_practices_found
-
-    def validate_all_topologies(self) -> List[Dict[str, Any]]:
-        """
-        Validate all topology files with comprehensive reporting
-        
-        :return: List of validation reports
-        """
-        validation_reports = []
-        
-        for filename in os.listdir(self.topology_dir):
-            if filename.endswith('-topology.yaml'):
-                filepath = os.path.join(self.topology_dir, filename)
-                report = self.validate_topology(filepath)
-                validation_reports.append(report)
-        
-        return validation_reports
+        # Precision recommendations
+        precision = simulation.get('precision', 'double')
+        if precision == 'single':
+            report['recommendations'].append(
+                "Using single precision. Verify if this meets simulation accuracy requirements."
+            )
 
 def main():
-    load_dotenv('config.env')
-    topology_dir = os.getenv('TOPOLOGY_DIR', './topologies')
-    
-    # Resolve relative path
-    topology_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), topology_dir))
-    
-    validator = TopologyValidator(topology_dir)
-    
-    # Validate all topologies
-    validation_reports = validator.validate_all_topologies()
-    
-    # Display comprehensive validation results
-    for report in validation_reports:
-        print(f"\nValidation Report for {report['file']}:")
+    """
+    Main entry point for topology validation.
+    """
+    try:
+        # Use environment variable or default topology path
+        topology_dir = os.getenv('TOPOLOGY_DIR', './topologies')
         
-        if report['errors']:
-            print("  Errors:")
-            for error in report['errors']:
-                print(f"    - {error}")
+        validator = TopologyValidator()
+        all_reports = []
         
-        if report['warnings']:
-            print("  Warnings:")
-            for warning in report['warnings']:
-                print(f"    - {warning}")
+        # Validate all topology files
+        for filename in os.listdir(topology_dir):
+            if filename.endswith('.yaml'):
+                filepath = os.path.join(topology_dir, filename)
+                report = validator.validate_topology(filepath)
+                all_reports.append(report)
+                
+                # Log detailed validation results
+                logger.info(f"Validation Report for {filename}:")
+                logger.info(f"  Status: {report['status']}")
+                
+                if report['errors']:
+                    logger.warning(f"  Errors: {report['errors']}")
+                if report['warnings']:
+                    logger.warning(f"  Warnings: {report['warnings']}")
+                if report['recommendations']:
+                    logger.info(f"  Recommendations: {report['recommendations']}")
         
-        if report['recommendations']:
-            print("  Recommendations:")
-            for rec in report['recommendations']:
-                print(f"    - {rec}")
+        # Determine overall validation status
+        overall_status = all(
+            report['status'] in ['valid', 'pending'] 
+            for report in all_reports
+        )
         
-        if report['best_practices']:
-            print("  Best Practices:")
-            for bp in report['best_practices']:
-                print(f"    - {bp}")
+        sys.exit(0 if overall_status else 1)
+    
+    except Exception as e:
+        logger.error(f"Topology validation process failed: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
